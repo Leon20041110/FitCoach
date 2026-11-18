@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="飲控教練">
+<title>飲控健身教練</title>
+<!--
+  飲控健身教練 — 單檔網頁 app
+  - AI：Google Gemini API（在 app 的「設定」貼上你的 API key）
+  - 同步：Firebase（Authentication + Firestore），沒設定時資料存在這台裝置
+  - 可選：把 Firebase 設定直接貼在下方 FIREBASE_CONFIG，就不用在每台裝置的設定頁貼一次
+-->
+<style>
+:root{
+  --bg:#f3f6f5; --card:#ffffff; --card2:#f7f9f8; --text:#15201d; --muted:#6a7672; --line:#e2e8e6;
+  --accent:#0f766e; --on-accent:#ffffff; --accent-bg:#e3f3ef; --accent-2:#14b8a6;
+  --p:#6366f1; --c:#f59e0b; --f:#ec4899; --k:#0f766e; --water:#0ea5e9;
+  --danger:#dc2626; --warn:#ea580c; --ok:#16a34a;
+  --r:16px; --tabh:62px; --shadow:0 1px 2px rgba(16,24,22,.04),0 6px 18px rgba(16,24,22,.05);
+  --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#0c1110; --card:#151c1a; --card2:#1b2421; --text:#e7eeeb; --muted:#93a29d; --line:#26312e;
+    --accent:#2dd4bf; --on-accent:#05211d; --accent-bg:#11302b; --accent-2:#5eead4; --k:#2dd4bf;
+    --p:#818cf8; --c:#fbbf24; --f:#f472b6; --shadow:none; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+body.noscroll{overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+h2,h3,h4{margin:0}
+.muted{color:var(--muted)} .sm{font-size:13px} .xs{font-size:12px} .b{font-weight:700} .num{font-variant-numeric:tabular-nums}
+.ok{color:var(--ok)} .bad{color:var(--danger)} .warn{color:var(--warn)}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;justify-content:space-between;
+  padding:calc(8px + var(--safe-t)) 12px 8px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top-l{display:flex;align-items:center;gap:6px;min-width:0;font-size:16px;white-space:nowrap}
+.top-r{display:flex;align-items:center;gap:6px}
+.datenav{display:flex;align-items:center;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px}
+.datenav.hide{visibility:hidden}
+.datenav button{border:0;background:none;width:30px;height:30px;border-radius:50%;font-size:18px;cursor:pointer}
+.datebtn{position:relative;padding:0 6px;font-weight:600;font-size:14px;white-space:nowrap;cursor:pointer}
+.datebtn input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.badge{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--card2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.badge.cloud{background:var(--accent-bg);color:var(--accent);border-color:transparent}
+.badge.warn{background:#fff1e6;color:var(--warn);border-color:transparent}
+.icon{border:0;background:none;font-size:20px;width:34px;height:34px;border-radius:50%;cursor:pointer}
+@media (max-width:370px){ .top-l b{display:none} }
+
+/* layout */
+main{max-width:640px;margin:0 auto;padding:12px 12px calc(var(--tabh) + 24px + var(--safe-b))}
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.card-h h3{font-size:16px}
+.banner{border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13px;background:var(--accent-bg);color:var(--text);display:flex;gap:8px;align-items:center;justify-content:space-between}
+.banner.warn{background:#fff1e6;color:#7c2d12}
+@media (prefers-color-scheme:dark){ .banner.warn{background:#3a2112;color:#fed7aa} .badge.warn{background:#3a2112} }
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.sp{flex:1}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:14px 6px}
+
+/* buttons */
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:9px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.ghost{background:var(--card2)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.btn.sm{padding:5px 10px;font-size:13px;border-radius:10px}
+.btn.wide{width:100%}
+.btn:disabled{opacity:.55;cursor:default}
+.x{border:0;background:var(--card2);width:30px;height:30px;border-radius:50%;cursor:pointer;flex:none}
+.x.sm{width:26px;height:26px;font-size:12px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+.chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.seg{display:flex;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;padding:7px;border-radius:9px;font-weight:600;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+
+/* forms */
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:10px}
+label>input,label>select,label>textarea{display:block;width:100%;margin-top:4px}
+input,select,textarea{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:16px;color:var(--text);min-width:0}
+textarea{resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);border-color:var(--accent)}
+.row3{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:8px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.check{display:flex;align-items:center;gap:8px;color:var(--text);font-size:14px}
+.check input{width:auto;margin:0}
+
+/* tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:space-around;background:color-mix(in srgb,var(--card) 94%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:4px 4px calc(4px + var(--safe-b));height:calc(var(--tabh) + var(--safe-b))}
+.tabbar button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;color:var(--muted);cursor:pointer;border-radius:12px}
+.tabbar button i{font-style:normal;font-size:21px;line-height:1.1;filter:grayscale(1);opacity:.75}
+.tabbar button.on{color:var(--accent);font-weight:700}
+.tabbar button.on i{filter:none;opacity:1}
+
+/* today */
+.hero{display:grid;grid-template-columns:128px 1fr;gap:14px;align-items:center}
+.ring{width:128px;height:128px}
+.ring-bg{fill:none;stroke:var(--card2);stroke-width:12}
+.ring-fg{fill:none;stroke:var(--k);stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.ring-fg.over{stroke:var(--warn)}
+.ring-v{font-size:24px;font-weight:800;text-anchor:middle;fill:var(--text)}
+.ring-t{font-size:11px;text-anchor:middle;fill:var(--muted)}
+.mbar{margin-bottom:8px}
+.mbar-h{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px}
+.mbar-t{height:8px;background:var(--card2);border-radius:99px;overflow:hidden}
+.mbar-f{height:100%;border-radius:99px}
+.mbar-f.p{background:var(--p)} .mbar-f.c{background:var(--c)} .mbar-f.f{background:var(--f)} .mbar-f.w{background:var(--water)}
+.remain{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card2);border-radius:12px;padding:9px 10px}
+.stat .v{font-size:19px;font-weight:800;line-height:1.2}
+.stat .l{font-size:12px;color:var(--muted)}
+.stat .d{font-size:12px;font-weight:600}
+
+/* meal list */
+.meal{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.meal:first-child{border-top:0;padding-top:0}
+.thumb{width:56px;height:56px;border-radius:12px;object-fit:cover;background:var(--card2);flex:none;display:flex;align-items:center;justify-content:center;font-size:24px}
+.meal .t{font-weight:700}
+.meal .s{font-size:13px;color:var(--muted);word-break:keep-all}
+.mealcard .photos-row{display:flex;gap:6px;overflow-x:auto;margin:8px 0}
+.mealcard .photos-row img{width:96px;height:96px;object-fit:cover;border-radius:12px;flex:none;cursor:pointer}
+table.items{width:100%;border-collapse:collapse;font-size:13px}
+table.items td,table.items th{padding:5px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.items td:first-child,table.items th:first-child{text-align:left;white-space:normal}
+table.items th{color:var(--muted);font-weight:600}
+table.items tr.tot td{font-weight:800;border-bottom:0}
+.ai{background:var(--accent-bg);border-radius:12px;padding:10px 12px;font-size:14px;margin:8px 0}
+.ai ul{margin:4px 0 0;padding-left:18px}
+.tagline{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--accent-bg);color:var(--accent)}
+
+/* editor */
+.sheet-wrap{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.42);animation:fade .15s}
+.sheet{position:relative;background:var(--card);width:100%;max-width:640px;max-height:92vh;border-radius:20px 20px 0 0;display:flex;flex-direction:column;animation:up .2s ease-out;padding-bottom:var(--safe-b)}
+.sheet.center{border-radius:20px;margin:auto 16px;max-width:420px}
+.sheet-wrap.center{align-items:center}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.sheet-h b{font-size:17px}
+.sheet-b{padding:14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet-f{display:flex;gap:8px;justify-content:flex-end;padding:10px 16px 14px;border-top:1px solid var(--line)}
+.sheet-f .btn.primary{flex:1}
+@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.pgrid{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.pbox{position:relative;width:84px;height:84px}
+.pbox img{width:100%;height:100%;object-fit:cover;border-radius:12px}
+.pbox .x{position:absolute;top:-6px;right:-6px;width:24px;height:24px;font-size:11px;background:var(--text);color:var(--card)}
+.item{background:var(--card2);border-radius:12px;padding:8px;margin-bottom:8px}
+.item-top{display:flex;gap:6px;margin-bottom:6px}
+.item-top .in-name{flex:1.6}
+.item-top .in-portion{flex:1}
+.item-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.item-nums label{margin:0;font-size:11px;text-align:center}
+.item-nums input{text-align:center;padding:7px 4px;background:var(--card)}
+.item-top input{background:var(--card);padding:7px 8px}
+.items-h{display:flex;justify-content:space-between;align-items:center;margin:6px 0 8px}
+.totals{background:var(--accent-bg);border-radius:12px;padding:10px;display:grid;grid-template-columns:repeat(4,1fr);text-align:center;font-size:12px;color:var(--muted)}
+.totals b{display:block;font-size:17px;color:var(--text)}
+.setrow{display:grid;grid-template-columns:28px 1fr 1fr 30px;gap:8px;align-items:center;margin-bottom:8px}
+.setrow .n{color:var(--muted);font-size:13px;text-align:center}
+.lastbox{background:var(--card2);border-radius:12px;padding:8px 10px;font-size:13px;margin-bottom:10px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* workouts */
+.wo{padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.wo:first-child{border-top:0;padding-top:0}
+.wo .t{font-weight:700;display:flex;justify-content:space-between;gap:8px}
+.sets{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.set{background:var(--card2);border-radius:8px;padding:2px 8px;font-size:13px}
+.hint{font-size:12.5px;margin-top:5px}
+.hist{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:14px;cursor:pointer}
+.hist:first-child{border-top:0}
+
+/* photos */
+.gday{font-weight:700;margin:12px 2px 6px;font-size:14px}
+.ggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.ggrid button{border:0;padding:0;background:var(--card2);aspect-ratio:1;border-radius:10px;overflow:hidden;position:relative;cursor:pointer}
+.ggrid img{width:100%;height:100%;object-fit:cover;display:block}
+.ggrid .cap{position:absolute;left:4px;bottom:4px;font-size:11px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;padding:1px 6px}
+.lightimg{width:100%;border-radius:14px;display:block;margin-bottom:10px}
+
+/* chart */
+svg.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .ax{fill:var(--muted);font-size:10px}
+.chart .lbl{font-size:10.5px;font-weight:700}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* coach */
+.chat{display:flex;flex-direction:column;gap:10px;padding-bottom:8px}
+.msg{max-width:88%;padding:10px 12px;border-radius:16px;font-size:14.5px;line-height:1.55;word-wrap:break-word;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-bottom-right-radius:6px;white-space:pre-wrap}
+.msg.model{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
+.msg.model p{margin:0 0 6px} .msg.model p:last-child{margin-bottom:0}
+.msg.model ul,.msg.model ol{margin:4px 0 6px;padding-left:20px}
+.msg.model h4{margin:8px 0 4px;font-size:15px}
+.msg.model table{border-collapse:collapse;font-size:13px;margin:6px 0;display:block;overflow-x:auto}
+.msg.model td,.msg.model th{border:1px solid var(--line);padding:4px 6px;white-space:nowrap}
+.msg.model th{background:var(--card2)}
+.msg.model code{background:var(--card2);padding:0 4px;border-radius:4px}
+.msg .meta{font-size:11px;opacity:.7;margin-top:4px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.composer{position:sticky;bottom:calc(var(--tabh) + var(--safe-b) + 8px);background:var(--card);border:1px solid var(--line);border-radius:18px;padding:6px;display:flex;gap:6px;align-items:flex-end;box-shadow:var(--shadow)}
+.composer textarea{flex:1;border:0;background:none;resize:none;max-height:140px;padding:8px 6px}
+.composer textarea:focus{outline:none}
+.composer .icon{flex:none;position:relative;display:flex;align-items:center;justify-content:center;margin:0}
+.cprev{display:flex;align-items:center;gap:8px;margin:0 0 6px}
+.cprev img{width:52px;height:52px;object-fit:cover;border-radius:10px}
+
+/* misc */
+#toast{position:fixed;left:50%;bottom:calc(var(--tabh) + var(--safe-b) + 16px);transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:calc(100% - 32px);max-width:440px}
+.toast{background:#1c2624;color:#fff;padding:10px 14px;border-radius:12px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);animation:up .2s;pointer-events:auto}
+.toast.err{background:#991b1b}
+details{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+summary{cursor:pointer;font-weight:600}
+pre.code{background:var(--card2);padding:10px;border-radius:10px;font-size:12px;overflow-x:auto;white-space:pre}
+ol.steps{padding-left:20px;margin:6px 0} ol.steps li{margin-bottom:6px;font-size:14px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-l"><span aria-hidden="true">💪</span><b>飲控教練</b></div>
+  <div class="datenav" id="datenav">
+    <button data-act="day-prev" aria-label="前一天">‹</button>
+    <label class="datebtn"><span id="datelabel"></span><input type="date" id="datepick" aria-label="選擇日期"></label>
+    <button data-act="day-next" aria-label="後一天">›</button>
+  </div>
+  <div class="top-r"><span id="syncbadge" class="badge">本機</span><button class="icon" data-act="go" data-tab="settings" aria-label="設定">⚙️</button></div>
+</header>
+<main id="view"></main>
+<nav class="tabbar" id="tabbar">
+  <button data-act="go" data-tab="today"><i>🏠</i><span>今日</span></button>
+  <button data-act="go" data-tab="food"><i>🍱</i><span>飲食</span></button>
+  <button data-act="go" data-tab="train"><i>🏋️</i><span>運動</span></button>
+  <button data-act="go" data-tab="body"><i>📊</i><span>身體</span></button>
+  <button data-act="go" data-tab="coach"><i>💬</i><span>教練</span></button>
+</nav>
+<div id="sheets"></div>
+<div id="toast"></div>
+
+<script type="module">
+/* ====================== 可自訂 ====================== */
+// 把 Firebase 主控台給你的設定貼在這裡（例如 { apiKey: "...", authDomain: "...", projectId: "...", ... }），
+// 就不用在每台裝置的設定頁貼一次。這組設定不是密碼，可以公開。
+const FIREBASE_CONFIG = null;
+const FB_VER = '12.4.0';
+const DEFAULT_MODEL = 'gemini-flash-latest';
+
+/* ====================== 常數 ====================== */
+const COLLS = ['meals','photos','workouts','body','days','chat','meta'];
+const MEAL_TYPES = ['早餐','午餐','晚餐','點心','飲料','宵夜'];
+const MEAL_ICON = {早餐:'🍳',午餐:'🍱',晚餐:'🍽️',點心:'🍌',飲料:'🧋',宵夜:'🌙'};
+const TAGS = ['推日','拉日','腿日','上半身','下半身','全身','有氧','休息'];
+const COMMON_EX = ['輔助引體向上','引體向上','滑輪下拉','坐姿划船','槓鈴划船','啞鈴單手划船','直臂下拉','跪姿單手滑輪下拉','臉拉','二頭彎舉','臥推','上斜啞鈴臥推','啞鈴臥推','機械胸推','肩推','側平舉','三頭下壓','伏地挺身','深蹲','腿推','羅馬尼亞硬舉','硬舉','腿伸','腿彎舉','臀推','保加利亞分腿蹲','小腿上提','棒式'];
+const CARDIO = {'快走':[3.0,4.3,5.0],'慢跑':[7.0,9.0,11.0],'飛輪/單車':[5.5,7.5,10.0],'游泳':[5.8,8.0,10.0],'爬梯機':[6.0,8.8,10.0],'橢圓機':[4.5,5.5,7.0],'划船機':[4.8,7.0,8.5],'跳繩':[8.8,11.0,12.3],'羽球':[5.5,7.0,8.0],'籃球':[6.0,6.5,8.0],'HIIT':[6.0,8.0,10.0],'其他':[4.0,6.0,8.0]};
+const INTENS = ['低','中','高'];
+const NUTR = [['kcal','熱量'],['protein','蛋白質'],['carbs','碳水'],['fat','脂肪']];
+const BODY_FIELDS = [
+  ['weight','體重','kg',-1],['smm','骨骼肌重','kg',1],['fatKg','體脂肪重','kg',-1],['pbf','體脂率','%',-1],
+  ['vfa','內臟脂肪面積','cm²',-1],['vfLevel','內臟脂肪等級','',-1],['waist','腰圍','cm',-1],['whr','腰臀比','',-1],['bmr','基礎代謝','kcal',0]
+];
+const DEFAULT_SETTINGS = {
+  id:'settings',
+  profile:{ sex:'男', age:'', height:'' },
+  targets:{ kcal:2050, protein:160, carbs:215, fat:60, water:3000 },
+  coachNotes:'', geminiKey:'', model:DEFAULT_MODEL
+};
+const QUICK = [
+  {label:'📋 今日總結', q:'請給我今天的總結：用表格列出每一餐和總量 vs 目標，再給我做得好的 1 點、明天要改進的 1 點。'},
+  {label:'🍽️ 下一餐吃什麼', q:'依照今天剩下的熱量和蛋白質額度，建議我下一餐吃什麼。給 2～3 個台灣外食或超商買得到的具體組合，附估計熱量和蛋白質。'},
+  {label:'📅 本週回顧', q:'請回顧最近 7 天的飲食與訓練：平均熱量、平均蛋白質、達標天數、訓練次數，以及下週最重要的 2 個調整。'},
+  {label:'🏋️ 下次怎麼練', q:'根據我最近的重訓紀錄，下次訓練每個動作建議用多少重量、做幾下？請照「兩組都做到 12 下就加重」的規則。'},
+  {label:'🔍 停滯分析', q:'根據我的身體組成紀錄、最近的飲食和訓練，分析體重和體脂停滯可能的原因，並給我具體的調整方案。'}
+];
+
+/* ====================== 工具 ====================== */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayStr = () => ymd(new Date());
+const parseYmd = s => { const [y,m,d] = String(s).split('-').map(Number); return new Date(y, (m||1)-1, d||1); };
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const WD = '日一二三四五六';
+const fmtDate = s => { const d = parseYmd(s); return `${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）`; };
+const fmtMD = s => { const d = parseYmd(s); return `${d.getMonth()+1}/${d.getDate()}`; };
+const nowHM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+const numOrNull = v => { if (v === '' || v == null) return null; const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+const r0 = n => Math.round(n || 0);
+const r1 = n => Math.round((n || 0) * 10) / 10;
+const clone = o => JSON.parse(JSON.stringify(o));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isImgData = s => typeof s === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,/.test(s);
+const ZERO = () => ({kcal:0, protein:0, carbs:0, fat:0});
+function deepMerge(a, b){ for (const k of Object.keys(b||{})) { if (b[k] && typeof b[k]==='object' && !Array.isArray(b[k]) && a[k] && typeof a[k]==='object') deepMerge(a[k], b[k]); else if (b[k] !== undefined) a[k] = b[k]; } return a; }
+function lsGet(k){ try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
+
+function toast(msg, err=false, ms=2800){
+  const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg;
+  const box = $('#toast'); while (box.children.length >= 2) box.firstChild.remove();
+  box.appendChild(t); setTimeout(() => t.remove(), err ? Math.max(ms, 5000) : ms);
+}
+
+/* ====================== 儲存：本機 IndexedDB ====================== */
+function reqP(r){ return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+function keyRange(o){
+  const lo = o.gte ?? null, hi = o.lte ?? o.lt ?? null, hiOpen = o.lt != null && o.lte == null;
+  if (lo != null && hi != null) return IDBKeyRange.bound(lo, hi, false, hiOpen);
+  if (lo != null) return IDBKeyRange.lowerBound(lo);
+  if (hi != null) return IDBKeyRange.upperBound(hi, hiOpen);
+  return null;
+}
+class LocalStore {
+  constructor(){ this.kind = 'local'; this.dbp = null; }
+  open(){
+    if (this.dbp) return this.dbp;
+    this.dbp = new Promise((res, rej) => {
+      const req = indexedDB.open('fitcoach', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        const idx = {meals:['date'], photos:['date','sortKey'], workouts:['date'], body:['date'], days:['date'], chat:['ts'], meta:[]};
+        for (const [name, ix] of Object.entries(idx)) {
+          if (!db.objectStoreNames.contains(name)) { const os = db.createObjectStore(name, {keyPath:'id'}); ix.forEach(f => os.createIndex(f, f)); }
+        }
+      };
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error || new Error('無法開啟本機資料庫'));
+    });
+    return this.dbp;
+  }
+  async os(c, mode='readonly'){ const db = await this.open(); return db.transaction(c, mode).objectStore(c); }
+  async get(c, id){ return (await reqP((await this.os(c)).get(id))) || null; }
+  async put(c, o){ await reqP((await this.os(c, 'readwrite')).put(clone(o))); return o; }
+  async del(c, id){ await reqP((await this.os(c, 'readwrite')).delete(id)); }
+  async all(c){ return await reqP((await this.os(c)).getAll()); }
+  async range(c, field, o={}){
+    const src = (await this.os(c)).index(field);
+    return new Promise((res, rej) => {
+      const out = []; const r = src.openCursor(keyRange(o), o.desc ? 'prev' : 'next');
+      r.onsuccess = () => { const cur = r.result; if (!cur || (o.limit && out.length >= o.limit)) return res(out); out.push(cur.value); cur.continue(); };
+      r.onerror = () => rej(r.error);
+    });
+  }
+}
+
+/* ====================== 儲存：Firebase Firestore ====================== */
+class CloudStore {
+  constructor(fs, db, uid){ this.kind = 'cloud'; this.fs = fs; this.db = db; this.uid = uid; }
+  col(c){ return this.fs.collection(this.db, 'users', this.uid, c); }
+  ref(c, id){ return this.fs.doc(this.db, 'users', this.uid, c, id); }
+  async get(c, id){ const s = await this.fs.getDoc(this.ref(c, id)); return s.exists() ? s.data() : null; }
+  async put(c, o){
+    const p = this.fs.setDoc(this.ref(c, o.id), clone(o));
+    p.catch(e => toast('同步失敗：' + fbErr(e), true));
+    await Promise.race([p, sleep(2500)]); // 離線時先寫入本機快取，連線後自動上傳
+    return o;
+  }
+  async del(c, id){ const p = this.fs.deleteDoc(this.ref(c, id)); p.catch(e => toast('刪除失敗：' + fbErr(e), true)); await Promise.race([p, sleep(2500)]); }
+  async all(c){ const s = await this.fs.getDocs(this.col(c)); return s.docs.map(d => d.data()); }
+  async range(c, field, o={}){
+    const {query, where, orderBy, limit} = this.fs; const q = [];
+    if (o.gte != null) q.push(where(field, '>=', o.gte));
+    if (o.lte != null) q.push(where(field, '<=', o.lte));
+    if (o.lt != null) q.push(where(field, '<', o.lt));
+    q.push(orderBy(field, o.desc ? 'desc' : 'asc'));
+    if (o.limit) q.push(limit(o.limit));
+    const s = await this.fs.getDocs(query(this.col(c), ...q));
+    return s.docs.map(d => d.data());
+  }
+}
+function fbErr(e){
+  const c = e?.code || '';
+  const map = {
+    'auth/invalid-credential':'Email 或密碼錯誤', 'auth/wrong-password':'Email 或密碼錯誤', 'auth/user-not-found':'找不到這個帳號',
+    'auth/email-already-in-use':'這個 Email 已經註冊過了，請直接登入', 'auth/weak-password':'密碼至少要 6 個字元',
+    'auth/invalid-email':'Email 格式不正確', 'auth/operation-not-allowed':'Firebase 尚未啟用「電子郵件/密碼」登入（見設定教學步驟 2）',
+    'auth/network-request-failed':'網路連線失敗', 'auth/too-many-requests':'嘗試次數太多，請稍後再試',
+    'auth/invalid-api-key':'Firebase 設定的 apiKey 不正確', 'auth/api-key-not-valid.-please-pass-a-valid-api-key.':'Firebase 設定的 apiKey 不正確',
+    'permission-denied':'沒有權限，請確認 Firestore 規則（見設定教學步驟 3）', 'unavailable':'目前離線，連線後會自動同步'
+  };
+  return map[c] || e?.message || String(e);
+}
+
+/* ====================== 狀態 ====================== */
+const S = {
+  local: new LocalStore(), store: null, fb: null, user: null, fbError: null, fbLoading: false,
+  settings: clone(DEFAULT_SETTINGS), date: todayStr(), tab: 'today', tk: 0,
+  photoCache: new Map(), woHist: [], bodyMachine: null, progEx: null, chatImg: null, chatBusy: false, models: null
+};
+S.store = S.local;
+
+/* ====================== 設定 ====================== */
+async function loadSettings(){
+  let s = null; try { s = await S.store.get('meta', 'settings'); } catch (e) { console.warn(e); }
+  S.settings = deepMerge(clone(DEFAULT_SETTINGS), s || {});
+  if (!S.settings.model) S.settings.model = DEFAULT_MODEL;
+  return !!s;
+}
+async function saveSettings(){ S.settings.id = 'settings'; S.settings.updatedAt = Date.now(); await S.store.put('meta', S.settings); }
+function getFbConfig(){
+  if (FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey) return FIREBASE_CONFIG;
+  try { const s = lsGet('fc_fbcfg'); return s ? JSON.parse(s) : null; } catch { return null; }
+}
+function parseFbConfig(text){
+  if (!text) return null; const o = {};
+  for (const k of ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId','measurementId']) {
+    const m = text.match(new RegExp(`["']?${k}["']?\\s*:\\s*["']([^"']+)["']`));
+    if (m) o[k] = m[1].trim();
+  }
+  if (!(o.apiKey && o.projectId && o.appId)) return null;
+  if (!o.authDomain) o.authDomain = `${o.projectId}.firebaseapp.com`;
+  return o;
+}
+
+/* ====================== Firebase 連線 ====================== */
+async function connectFirebase(cfg){
+  S.fbLoading = true; S.fbError = null; renderBadge();
+  try {
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [appM, authM, fsM] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+    const app = appM.getApps().length ? appM.getApp() : appM.initializeApp(cfg);
+    const auth = authM.getAuth(app);
+    let db;
+    try { db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache({ tabManager: fsM.persistentMultipleTabManager() }) }); }
+    catch (e) { console.warn('persistent cache unavailable', e); db = fsM.getFirestore(app); }
+    S.fb = { app, auth, db, authM, fsM };
+    let first = true;
+    authM.onAuthStateChanged(auth, async user => {
+      S.user = user || null; S.fbLoading = false;
+      if (user) {
+        S.store = new CloudStore(fsM, db, user.uid);
+        let had = false; try { had = await loadSettings(); } catch (e) { console.warn(e); }
+        if (!had) { // 第一次登入：把這台裝置的設定帶上雲端
+          const localS = await S.local.get('meta', 'settings');
+          if (localS) { S.settings = deepMerge(clone(DEFAULT_SETTINGS), localS); await saveSettings(); }
+        }
+        if (!first) toast('已登入，資料會在裝置間同步');
+      } else {
+        S.store = S.local; await loadSettings();
+      }
+      first = false; S.photoCache.clear(); render();
+    });
+  } catch (e) {
+    console.error(e); S.fbLoading = false; S.fbError = '無法載入 Firebase（' + (e.message || e) + '）';
+    renderBadge(); if (S.tab === 'settings') render();
+  }
+}
+
+/* ====================== Gemini ====================== */
+function geminiErr(status, j){
+  const m = j?.error?.message || ''; const st = j?.error?.status || '';
+  if (/API key not valid|API_KEY_INVALID/i.test(m) || status === 401) return 'Gemini API key 無效，請到設定確認';
+  if (status === 403) return 'Gemini 拒絕存取（' + (m || st) + '）。請確認 key 正確、專案已啟用 Gemini API';
+  if (status === 404) return `找不到模型「${S.settings.model}」。請到設定 →「載入可用模型」換一個`;
+  if (status === 429) return 'Gemini 額度用完或請求太頻繁，請稍等一分鐘再試（免費方案有每分鐘與每日上限）';
+  if (status >= 500) return 'Gemini 伺服器忙碌，請稍後再試';
+  return 'Gemini 錯誤：' + (m || st || status);
+}
+async function gemini({ system, contents, json=false, model, timeout=90000 }){
+  const key = (S.settings.geminiKey || '').trim();
+  if (!key) throw new Error('還沒設定 Gemini API key，請到「設定」貼上');
+  const mdl = String(model || S.settings.model || DEFAULT_MODEL).replace(/^models\//, '');
+  const body = { contents };
+  if (system) body.systemInstruction = { parts: [{ text: system }] };
+  if (json) body.generationConfig = { responseMimeType: 'application/json' };
+  const ac = new AbortController(); const timer = setTimeout(() => ac.abort(), timeout);
+  let res;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal: ac.signal
+    });
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? 'Gemini 回應逾時，請再試一次' : '無法連線到 Gemini，請檢查網路');
+  } finally { clearTimeout(timer); }
+  let j = null; try { j = await res.json(); } catch {}
+  if (!res.ok) throw new Error(geminiErr(res.status, j));
+  if (j?.promptFeedback?.blockReason) throw new Error('Gemini 拒絕回答（' + j.promptFeedback.blockReason + '）');
+  const cand = j?.candidates?.[0];
+  const text = (cand?.content?.parts || []).filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('').trim();
+  if (!text) throw new Error('Gemini 沒有回傳內容' + (cand?.finishReason ? '（' + cand.finishReason + '）' : ''));
+  return { text, model: j?.modelVersion || mdl };
+}
+function parseJSON(t){
+  let s = String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  try { return JSON.parse(s); } catch {}
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch {} }
+  throw new Error('AI 回傳格式無法解析，請再試一次');
+}
+const imgPart = dataUrl => ({ inlineData: { mimeType: dataUrl.slice(5, dataUrl.indexOf(';')) || 'image/jpeg', data: dataUrl.split(',')[1] } });
+async function listModels(){
+  const key = (S.settings.geminiKey || '').trim(); if (!key) throw new Error('請先填入 API key');
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': key } }).catch(() => null);
+  if (!res) throw new Error('無法連線到 Gemini');
+  const j = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(geminiErr(res.status, j));
+  const bad = /(tts|image|live|embed|transcribe|robotics|audio|aqa|banana|imagen|veo|computer|learnlm|gemma)/i;
+  return (j?.models || [])
+    .filter(m => (m.supportedGenerationMethods || m.supportedActions || []).includes('generateContent'))
+    .map(m => ({ id: m.name.replace(/^models\//, ''), name: m.displayName || m.name }))
+    .filter(m => /gemini/i.test(m.id) && !bad.test(m.id))
+    .sort((a, b) => b.id.localeCompare(a.id, 'en', { numeric: true }));
+}
+
+const MEAL_SYS = `你是台灣的註冊營養師兼健身教練，擅長從照片估算台灣常見外食、便當、自助餐、手搖飲、超商食品的份量與營養素。
+規則：
+1. 把餐點拆成個別食物，估算每一項的份量（克、毫升或個數），以及熱量 kcal、蛋白質 protein、碳水 carbs、脂肪 fat（單位為克，取整數）。
+2. 使用者的補充說明優先於你從照片做的判斷。
+3. 手搖飲要依容量和甜度（全糖、少糖、半糖、微糖、無糖）估算；含鮮奶、奶精或豆漿的要算進蛋白質和脂肪。
+4. 照片看不到、無法確定，但會明顯影響熱量的東西（例如碗底有沒有飯、醬汁多少、是炸的還是烤的、飲料甜度），不要自行假設，改寫進 questions，最多 3 題，已經在補充說明交代過的不要再問。
+5. comment 用 1～3 句繁體中文，依今天剩下的額度給具體建議（例如下一餐怎麼補蛋白質）。
+只輸出 JSON，不要有其他文字，格式如下：
+{"title":"餐點簡短名稱","items":[{"name":"食物","portion":"份量","kcal":0,"protein":0,"carbs":0,"fat":0}],"questions":["..."],"comment":"..."}`;
+
+const BODY_SYS = `你會看到一張身體組成分析報告（例如 InBody、ACCUNIQ）的照片。請擷取「量測值」，不要用建議範圍或標準值，也不要讀手寫筆記。
+只輸出 JSON，找不到的欄位填 null：
+{"date":"YYYY-MM-DD","machine":"機型，例如 InBody 230、ACCUNIQ BC380","weight":體重kg,"smm":骨骼肌重kg,"fatKg":體脂肪重kg,"pbf":體脂率百分比,"vfa":內臟脂肪面積cm2,"vfLevel":內臟脂肪等級,"waist":腰圍cm,"whr":腰臀比,"bmr":基礎代謝率kcal}`;
+
+/* ====================== 資料工具 ====================== */
+const mealTotals = m => (m.items || []).reduce((a, it) => ({ kcal: a.kcal + num(it.kcal), protein: a.protein + num(it.protein), carbs: a.carbs + num(it.carbs), fat: a.fat + num(it.fat) }), ZERO());
+const sumTotals = arr => arr.reduce((a, t) => ({ kcal: a.kcal + t.kcal, protein: a.protein + t.protein, carbs: a.carbs + t.carbs, fat: a.fat + t.fat }), ZERO());
+async function mealsOn(d){ return (await S.store.range('meals', 'date', { gte: d, lte: d })).sort((a, b) => (a.time || '').localeCompare(b.time || '')); }
+async function woOn(d){ return (await S.store.range('workouts', 'date', { gte: d, lte: d })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); }
+async function getPhoto(id){
+  if (!id) return null;
+  if (S.photoCache.has(id)) return S.photoCache.get(id);
+  const p = await S.store.get('photos', id).catch(() => null);
+  const d = isImgData(p?.data) ? p.data : null;
+  if (d) S.photoCache.set(id, d);
+  return d;
+}
+async function updateDay(d, patch){
+  const cur = (await S.store.get('days', d)) || { id: d, date: d };
+  const nx = { ...cur, ...patch, id: d, date: d, updatedAt: Date.now() };
+  await S.store.put('days', nx); return nx;
+}
+async function latestWeight(){
+  const days = await S.store.range('days', 'date', { gte: addDays(todayStr(), -30), lte: todayStr(), desc: true, limit: 30 });
+  const dw = days.find(x => num(x.weight) > 0);
+  if (dw) return num(dw.weight);
+  const body = (await S.store.all('body')).filter(b => num(b.weight) > 0).sort((a, b) => b.date.localeCompare(a.date));
+  return body[0] ? num(body[0].weight) : null;
+}
+const fmtW = w => { const n = num(w); return n < 0 ? `輔助 ${-n}kg` : n === 0 ? '自體' : `${n}kg`; };
+const setsStr = sets => (sets || []).map(s => `${fmtW(s.w)}×${s.r}`).join('、');
+function topSet(sets){ return (sets || []).reduce((b, x) => (num(x.w) > b.w || (num(x.w) === b.w && num(x.r) > b.r)) ? { w: num(x.w), r: num(x.r) } : b, { w: -Infinity, r: 0 }); }
+function compareSets(cur, prev){
+  if (!prev || !cur?.sets?.length) return '';
+  const a = topSet(cur.sets), b = topSet(prev.sets);
+  if (a.w > b.w) return `<span class="ok">↑ ${b.w < 0 ? '輔助減少 ' : '重量 +'}${r1(a.w - b.w)}kg</span>`;
+  if (a.w === b.w && a.r > b.r) return `<span class="ok">↑ 最佳組次數 +${a.r - b.r}</span>`;
+  if (a.w === b.w && a.r === b.r) {
+    const va = cur.sets.reduce((s, x) => s + num(x.r), 0), vb = prev.sets.reduce((s, x) => s + num(x.r), 0);
+    return va > vb ? `<span class="ok">↑ 總次數 +${va - vb}</span>` : '<span class="muted">＝ 與上次持平</span>';
+  }
+  return '<span class="warn">↓ 比上次低</span>';
+}
+function progressHint(o){
+  const s = (o.sets || []).filter(x => num(x.r) > 0);
+  if (s.length && s.every(x => num(x.r) >= 12)) return num(topSet(s).w) < 0 ? '💡 每組都做到 12 下了，下次輔助減少 2–2.5kg' : '💡 每組都做到 12 下了，下次可以加重';
+  return '';
+}
+
+/* ====================== 圖片 ====================== */
+async function compressImage(file, max=1024, q=0.72){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('無法讀取這張圖片（格式不支援？）')); i.src = url; });
+    const w = img.naturalWidth, h = img.naturalHeight; const s = Math.min(1, max / Math.max(w, h));
+    const c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s);
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', q);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* ====================== 圖表（SVG） ====================== */
+function lineChart(series, { h=170, unit='' } = {}){
+  const pts = series.flatMap(s => s.points);
+  if (pts.length < 1) return '<p class="empty">還沒有資料</p>';
+  const t = x => parseYmd(x).getTime();
+  const xs = [...new Set(pts.map(p => p.x))].sort();
+  const tmin = t(xs[0]), tmax = t(xs[xs.length - 1]);
+  let ymin = Math.min(...pts.map(p => p.y)), ymax = Math.max(...pts.map(p => p.y));
+  const py = (ymax - ymin) * 0.18 || Math.max(1, Math.abs(ymax) * 0.05); ymin -= py; ymax += py;
+  const W = 340, L = 36, R = 34, T = 10, B = 22;
+  const X = x => tmax === tmin ? (L + (W - L - R) / 2) : L + (t(x) - tmin) / (tmax - tmin) * (W - L - R);
+  const Y = y => T + (ymax - y) / (ymax - ymin) * (h - T - B);
+  let g = '';
+  for (let i = 0; i <= 3; i++) { const v = ymin + (ymax - ymin) * i / 3; const y = Y(v); g += `<line class="grid" x1="${L}" x2="${W - R + 26}" y1="${y}" y2="${y}"/><text class="ax" x="${L - 4}" y="${y + 3}" text-anchor="end">${r1(v)}</text>`; }
+  const xl = xs.length <= 2 ? xs : [xs[0], xs[Math.floor(xs.length / 2)], xs[xs.length - 1]];
+  [...new Set(xl)].forEach(x => { g += `<text class="ax" x="${X(x)}" y="${h - 6}" text-anchor="middle">${fmtMD(x)}</text>`; });
+  for (const s of series) {
+    if (!s.points.length) continue;
+    const ps = [...s.points].sort((a, b) => a.x.localeCompare(b.x));
+    if (ps.length > 1) g += `<polyline fill="none" stroke="${s.color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" ${s.dash ? 'stroke-dasharray="4 4"' : ''} points="${ps.map(p => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')}"/>`;
+    ps.forEach(p => { g += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${s.dot ?? 3.2}" fill="${s.color}"/>`; });
+    const last = ps[ps.length - 1];
+    g += `<text class="lbl" x="${X(last.x) + 6}" y="${Y(last.y) + 4}" fill="${s.color}">${r1(last.y)}</text>`;
+  }
+  const legend = series.length > 1 ? `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
+  return `<svg class="chart" viewBox="0 0 ${W} ${h}" role="img">${g}</svg>${legend}`;
+}
+function barChart(labels, values, { target=0, color='var(--k)', h=130, unit='', overColor='var(--warn)' } = {}){
+  const W = 340, L = 8, R = 8, T = 14, B = 20;
+  const max = Math.max(target * 1.15, ...values, 1);
+  const bw = (W - L - R) / labels.length;
+  const Y = v => T + (1 - v / max) * (h - T - B);
+  let g = '';
+  values.forEach((v, i) => {
+    const x = L + i * bw + bw * 0.18, w = bw * 0.64, y = Y(v);
+    const over = target && v > target * 1.05;
+    g += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(0, h - B - y)}" rx="5" fill="${over ? overColor : color}" opacity="${v ? 1 : .25}"/>`;
+    if (v) g += `<text class="ax" x="${x + w / 2}" y="${y - 3}" text-anchor="middle">${r0(v)}</text>`;
+    g += `<text class="ax" x="${x + w / 2}" y="${h - 5}" text-anchor="middle">${esc(labels[i])}</text>`;
+  });
+  if (target) { const y = Y(target); g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--muted)" stroke-dasharray="4 4"/><text class="ax" x="${W - R}" y="${y - 3}" text-anchor="end">目標 ${r0(target)}${unit}</text>`; }
+  return `<svg class="chart" viewBox="0 0 ${W} ${h}" role="img">${g}</svg>`;
+}
+function ring(val, target){
+  const r = 52, c = 2 * Math.PI * r, pct = Math.min(1, target ? val / target : 0), over = target && val > target * 1.05;
+  return `<svg viewBox="0 0 120 120" class="ring"><circle cx="60" cy="60" r="${r}" class="ring-bg"/><circle cx="60" cy="60" r="${r}" class="ring-fg ${over ? 'over' : ''}" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 60 60)"/><text x="60" y="58" class="ring-v">${r0(val)}</text><text x="60" y="77" class="ring-t">/ ${r0(target)} kcal</text></svg>`;
+}
+const mbar = (label, v, t, cls, unit='g') => `<div class="mbar"><div class="mbar-h"><span>${label}</span><span class="num"><b>${r0(v)}</b> / ${r0(t)} ${unit}</span></div><div class="mbar-t"><div class="mbar-f ${cls}" style="width:${t ? Math.min(100, v / t * 100) : 0}%"></div></div></div>`;
+
+/* ====================== 簡易 Markdown ====================== */
+function mdInline(s){ return s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>'); }
+function md(text){
+  const L = esc(text).split('\n'); let h = '', i = 0;
+  while (i < L.length) {
+    const l = L[i];
+    if (/^\s*\|/.test(l)) {
+      const rows = []; while (i < L.length && /^\s*\|/.test(L[i])) rows.push(L[i++]);
+      const cells = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => mdInline(c.trim()));
+      const body = rows.filter(r => !(/-/.test(r) && /^[\s|:-]+$/.test(r)));
+      h += '<table>' + body.map((r, k) => `<tr>${cells(r).map(c => k === 0 ? `<th>${c}</th>` : `<td>${c}</td>`).join('')}</tr>`).join('') + '</table>';
+      continue;
+    }
+    if (/^\s*[-*•]\s+/.test(l)) { h += '<ul>'; while (i < L.length && /^\s*[-*•]\s+/.test(L[i])) h += '<li>' + mdInline(L[i++].replace(/^\s*[-*•]\s+/, '')) + '</li>'; h += '</ul>'; continue; }
+    if (/^\s*\d+[.)]\s+/.test(l)) { h += '<ol>'; while (i < L.length && /^\s*\d+[.)]\s+/.test(L[i])) h += '<li>' + mdInline(L[i++].replace(/^\s*\d+[.)]\s+/, '')) + '</li>'; h += '</ol>'; continue; }
+    const hd = l.match(/^\s*#{1,6}\s+(.*)/); if (hd) { h += '<h4>' + mdInline(hd[1]) + '</h4>'; i++; continue; }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(l)) { i++; continue; }
+    if (l.trim()) h += '<p>' + mdInline(l) + '</p>';
+    i++;
+  }
+  return h;
+}
+
+/* ====================== 對話框 ====================== */
+function openSheet(html, { sticky=false, center=false, onClose } = {}){
+  const root = $('#sheets'); const wrap = document.createElement('div');
+  wrap.className = 'sheet-wrap' + (center ? ' center' : '');
+  wrap.innerHTML = `<div class="sheet-bg"></div><div class="sheet ${center ? 'center' : ''}" role="dialog" aria-modal="true">${html}</div>`;
+  root.appendChild(wrap); document.body.classList.add('noscroll');
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; wrap.remove(); if (!root.children.length) document.body.classList.remove('noscroll'); onClose?.(); };
+  if (!sticky) wrap.querySelector('.sheet-bg').onclick = close;
+  wrap.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
+  return { el: wrap.querySelector('.sheet'), close };
+}
+function confirmBox(msg, { ok='確定', danger=false } = {}){
+  return new Promise(res => {
+    const sh = openSheet(`<div class="sheet-b"><p style="margin:4px 0 0;font-size:15px">${esc(msg)}</p></div><div class="sheet-f"><button class="btn" data-no>取消</button><button class="btn ${danger ? 'danger' : 'primary'}" data-yes>${esc(ok)}</button></div>`, { center: true, onClose: () => res(false) });
+    $('[data-no]', sh.el).onclick = () => sh.close();
+    $('[data-yes]', sh.el).onclick = () => { res(true); sh.close(); };
+  });
+}
+async function busy(btn, label, fn){
+  const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${label}`;
+  try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = old; }
+}
+
+/* ====================== 版面 ====================== */
+const TABS = ['today','food','photos','train','body','coach','settings'];
+const DATE_TABS = ['today','food','train'];
+function renderBadge(){
+  const b = $('#syncbadge');
+  if (S.store.kind === 'cloud') { b.className = 'badge cloud'; b.textContent = '☁ 已同步'; }
+  else if (S.fbLoading) { b.className = 'badge'; b.textContent = '連線中…'; }
+  else if (getFbConfig()) { b.className = 'badge warn'; b.textContent = S.fbError ? '同步失敗' : '未登入'; }
+  else { b.className = 'badge'; b.textContent = '本機'; }
+}
+function renderChrome(){
+  $$('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab || (S.tab === 'photos' && b.dataset.tab === 'food')));
+  $('#datenav').classList.toggle('hide', !DATE_TABS.includes(S.tab));
+  $('#datelabel').textContent = S.date === todayStr() ? `今天 ${fmtMD(S.date)}` : fmtDate(S.date);
+  $('#datepick').value = S.date;
+  renderBadge();
+}
+function syncBanner(){
+  if (S.store.kind === 'cloud' || S.fbLoading) return '';
+  if (getFbConfig()) return `<div class="banner warn"><span>尚未登入，資料目前只存在這台裝置。</span><button class="btn sm" data-act="go" data-tab="settings">登入</button></div>`;
+  return '';
+}
+async function render(){
+  const tk = ++S.tk; renderChrome();
+  const el = $('#view');
+  try { await VIEWS[S.tab](el, tk); }
+  catch (e) { console.error(e); if (tk === S.tk) el.innerHTML = `<div class="card"><b>載入失敗</b><p class="sm muted">${esc(fbErr(e))}</p><button class="btn sm" data-act="reload">重試</button></div>`; }
+}
+function goTab(t){ S.tab = TABS.includes(t) ? t : 'today'; try { history.replaceState(null, '', '#' + S.tab); } catch {} window.scrollTo(0, 0); render(); }
+
+/* ====================== 今日 ====================== */
+async function viewToday(el, tk){
+  const d = S.date, T = S.settings.targets;
+  const [meals, wos, day, wk] = await Promise.all([
+    mealsOn(d), woOn(d), S.store.get('days', d),
+    S.store.range('meals', 'date', { gte: addDays(d, -6), lte: d })
+  ]);
+  const thumbs = await Promise.all(meals.map(m => getPhoto(m.photoIds?.[0])));
+  if (tk !== S.tk) return;
+  const tot = sumTotals(meals.map(mealTotals));
+  const remK = T.kcal - tot.kcal, remP = T.protein - tot.protein;
+  const water = num(day?.water);
+  const str = wos.filter(w => w.kind === 'strength'), car = wos.filter(w => w.kind === 'cardio');
+  const nSets = str.reduce((s, w) => s + (w.sets || []).length, 0);
+  const cMin = car.reduce((s, w) => s + num(w.minutes), 0), cK = car.reduce((s, w) => s + num(w.kcal), 0);
+  const days7 = [...Array(7)].map((_, i) => addDays(d, i - 6));
+  const byDay = Object.fromEntries(days7.map(x => [x, ZERO()]));
+  wk.forEach(m => { if (byDay[m.date]) byDay[m.date] = sumTotals([byDay[m.date], mealTotals(m)]); });
+  const logged = days7.filter(x => byDay[x].kcal > 0);
+  const avgK = logged.length ? logged.reduce((s, x) => s + byDay[x].kcal, 0) / logged.length : 0;
+  const avgP = logged.length ? logged.reduce((s, x) => s + byDay[x].protein, 0) / logged.length : 0;
+  const noKey = !S.settings.geminiKey;
+
+  el.innerHTML = `
+  ${syncBanner()}
+  ${noKey ? `<div class="banner"><span>👋 先到設定貼上 Gemini API key，才能用 AI 分析照片和教練對話。</span><button class="btn sm" data-act="go" data-tab="settings">設定</button></div>` : ''}
+  <div class="card">
+    <div class="hero">
+      ${ring(tot.kcal, T.kcal)}
+      <div>
+        ${mbar('蛋白質', tot.protein, T.protein, 'p')}
+        ${mbar('碳水', tot.carbs, T.carbs, 'c')}
+        ${mbar('脂肪', tot.fat, T.fat, 'f')}
+      </div>
+    </div>
+    <div class="remain">
+      ${remK >= 0 ? `還可以吃 <b class="num">${r0(remK)}</b> kcal` : `已超過 <b class="num bad">${r0(-remK)}</b> kcal`}
+      ・${remP > 0 ? `蛋白質還差 <b class="num">${r0(remP)}</b> g` : '<span class="ok b">蛋白質已達標 ✓</span>'}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>🍽️ 今天的餐點</h3><button class="btn sm primary" data-act="add-meal">＋ 記一餐</button></div>
+    ${meals.length ? meals.map((m, i) => { const t = mealTotals(m); return `
+      <div class="meal" data-act="edit-meal" data-id="${esc(m.id)}">
+        ${thumbs[i] ? `<img class="thumb" src="${thumbs[i]}" alt="">` : `<div class="thumb">${MEAL_ICON[m.type] || '🍴'}</div>`}
+        <div class="sp"><div class="t">${esc(m.type)}${m.title ? '・' + esc(m.title) : ''}</div>
+        <div class="s num">${esc(m.time || '')}　${r0(t.kcal)} kcal・蛋白質 ${r0(t.protein)}g・碳水 ${r0(t.carbs)}g・脂肪 ${r0(t.fat)}g</div></div>
+      </div>`; }).join('') : '<p class="empty">還沒有紀錄。拍下你吃的東西，讓 AI 幫你估算。</p>'}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>💧 喝水</h3><span class="num sm"><b>${r0(water)}</b> / ${r0(T.water)} ml</span></div>
+    <div class="mbar-t" style="margin-bottom:10px"><div class="mbar-f w" style="width:${T.water ? Math.min(100, water / T.water * 100) : 0}%"></div></div>
+    <div class="row wrap"><button class="chip" data-act="water" data-ml="250">＋250</button><button class="chip" data-act="water" data-ml="500">＋500</button><button class="chip" data-act="water" data-ml="700">＋700</button><span class="sp"></span><button class="chip" data-act="water" data-ml="-250">−250</button></div>
+  </div>
+
+  <div class="card">
+    <div class="grid2">
+      <label style="margin:0">晨起體重（kg）<input id="t-weight" inputmode="decimal" placeholder="例如 89.6" value="${day?.weight ?? ''}"></label>
+      <label style="margin:0">今天訓練<input id="t-tag" list="dl-tags" placeholder="例如 拉日" value="${esc(day?.tag || '')}"></label>
+    </div>
+    <datalist id="dl-tags">${TAGS.map(t => `<option value="${t}">`).join('')}</datalist>
+    <div class="stats" style="margin-top:12px">
+      <div class="stat"><div class="v num">${str.length}</div><div class="l">重訓動作・${nSets} 組</div></div>
+      <div class="stat"><div class="v num">${r0(cMin)}<span class="sm"> 分</span></div><div class="l">有氧時間</div></div>
+      <div class="stat"><div class="v num">${r0(cK)}</div><div class="l">有氧消耗 kcal</div></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="go" data-tab="train">🏋️ 記錄運動</button><span class="sp"></span><button class="btn sm primary" data-act="coach-today">💬 請教練總結今天</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>📈 近 7 天熱量</h3><span class="sm muted num">平均 ${r0(avgK)} kcal・蛋白質 ${r0(avgP)} g</span></div>
+    ${barChart(days7.map(fmtMD), days7.map(x => byDay[x].kcal), { target: T.kcal })}
+    <div class="card-h" style="margin:12px 0 4px"><h3 style="font-size:14px">蛋白質（g）</h3></div>
+    ${barChart(days7.map(fmtMD), days7.map(x => byDay[x].protein), { target: T.protein, color: 'var(--p)', h: 110, unit: 'g', overColor: 'var(--p)' })}
+  </div>`;
+
+  const saveW = async () => { const v = numOrNull($('#t-weight').value); await updateDay(d, { weight: v }); toast(v ? '已記錄體重' : '已清除體重'); };
+  $('#t-weight').onchange = saveW;
+  $('#t-tag').onchange = async () => { await updateDay(d, { tag: $('#t-tag').value.trim() }); toast('已更新訓練類型'); };
+}
+
+/* ====================== 飲食 ====================== */
+async function viewFood(el, tk){
+  const d = S.date; const meals = await mealsOn(d);
+  const photos = await Promise.all(meals.map(m => Promise.all((m.photoIds || []).map(getPhoto))));
+  if (tk !== S.tk) return;
+  const tot = sumTotals(meals.map(mealTotals));
+  el.innerHTML = `
+  ${syncBanner()}
+  <div class="seg"><button class="on">餐點紀錄</button><button data-act="go" data-tab="photos">照片牆</button></div>
+  <button class="btn primary wide" data-act="add-meal" style="margin-bottom:12px;padding:12px">📷 記一餐（拍照或文字）</button>
+  ${meals.map((m, i) => { const t = mealTotals(m); return `
+    <div class="card mealcard">
+      <div class="card-h" style="margin-bottom:4px"><div><span class="tagline">${MEAL_ICON[m.type] || ''} ${esc(m.type)}</span> <span class="muted sm">${esc(m.time || '')}</span></div><button class="btn sm" data-act="edit-meal" data-id="${esc(m.id)}">編輯</button></div>
+      ${m.title ? `<div class="b">${esc(m.title)}</div>` : ''}
+      ${photos[i].filter(Boolean).length ? `<div class="photos-row">${photos[i].filter(Boolean).map(p => `<img src="${p}" alt="" data-act="lightbox-src">`).join('')}</div>` : ''}
+      ${m.note ? `<div class="sm muted">📝 ${esc(m.note)}</div>` : ''}
+      ${itemsTable(m.items, t)}
+      ${m.ai?.comment ? `<div class="ai">💬 ${esc(m.ai.comment)}</div>` : ''}
+    </div>`; }).join('') || '<div class="card"><p class="empty">這天還沒有餐點紀錄。</p></div>'}
+  ${meals.length ? `<div class="card"><div class="card-h" style="margin:0"><h3>這天合計</h3><span class="num"><b>${r0(tot.kcal)}</b> kcal</span></div><div class="sm muted num">蛋白質 ${r0(tot.protein)}g・碳水 ${r0(tot.carbs)}g・脂肪 ${r0(tot.fat)}g</div></div>` : ''}`;
+}
+function itemsTable(items, t){
+  if (!items?.length) return '<p class="sm muted">（沒有食物明細）</p>';
+  t = t || mealTotals({ items });
+  return `<table class="items num"><tr><th>食物</th><th>kcal</th><th>蛋白</th><th>碳水</th><th>脂肪</th></tr>
+    ${items.map(it => `<tr><td>${esc(it.name)}${it.portion ? `<div class="xs muted">${esc(it.portion)}</div>` : ''}</td><td>${r0(it.kcal)}</td><td>${r0(it.protein)}</td><td>${r0(it.carbs)}</td><td>${r0(it.fat)}</td></tr>`).join('')}
+    <tr class="tot"><td>合計</td><td>${r0(t.kcal)}</td><td>${r0(t.protein)}</td><td>${r0(t.carbs)}</td><td>${r0(t.fat)}</td></tr></table>`;
+}
+function guessType(){ const h = new Date().getHours(); return h < 10 ? '早餐' : h < 14 ? '午餐' : h < 17 ? '點心' : h < 21 ? '晚餐' : '宵夜'; }
+
+async function openMealEditor(existing){
+  const isNew = !existing;
+  const m = existing ? clone(existing) : { id: uid(), date: S.date, time: S.date === todayStr() ? nowHM() : '12:00', type: guessType(), title: '', note: '', items: [], photoIds: [], ai: null, createdAt: Date.now() };
+  m.items = m.items || []; m.photoIds = m.photoIds || [];
+  const photos = [];
+  for (const pid of m.photoIds) { const p = await getPhoto(pid); if (p) photos.push({ id: pid, data: p, fresh: false }); }
+  const removed = [];
+  let dirty = false;
+  const sh = openSheet(`
+    <div class="sheet-h"><b>${isNew ? '記一餐' : '編輯餐點'}</b><button class="x" data-x>✕</button></div>
+    <div class="sheet-b">
+      <div class="chips" id="m-types" style="padding-top:0">${MEAL_TYPES.map(t => `<button class="chip ${t === m.type ? 'on' : ''}" data-t="${t}">${MEAL_ICON[t]} ${t}</button>`).join('')}</div>
+      <div class="grid2">
+        <label>日期<input type="date" id="m-date" value="${esc(m.date)}"></label>
+        <label>時間<input type="time" id="m-time" value="${esc(m.time)}"></label>
+      </div>
+      <div class="pgrid" id="m-photos"></div>
+      <div class="row" style="margin-bottom:12px">
+        <label class="btn ghost" style="flex:1;margin:0;color:var(--text)">📷 拍照<input type="file" accept="image/*" capture="environment" hidden id="m-cam"></label>
+        <label class="btn ghost" style="flex:1;margin:0;color:var(--text)">🖼️ 從相簿選<input type="file" accept="image/*" multiple hidden id="m-lib"></label>
+      </div>
+      <label>補充說明（份量、甜度、店名、有沒有飯…）<textarea id="m-note" rows="2" placeholder="例：北投紅茶 豆漿紅茶 1000ml 微糖；碗底有糙米飯約 100g">${esc(m.note)}</textarea></label>
+      <button class="btn primary wide" id="m-ai">✨ AI 分析熱量與營養</button>
+      <div id="m-aibox"></div>
+      <label style="margin-top:12px">餐點名稱<input id="m-title" value="${esc(m.title)}" placeholder="例：鮪魚 poke 碗"></label>
+      <div class="items-h"><b>食物明細</b><button class="btn sm" id="m-additem">＋ 手動新增</button></div>
+      <div id="m-items"></div>
+      <div class="totals" id="m-totals"></div>
+    </div>
+    <div class="sheet-f">${isNew ? '' : '<button class="btn danger" id="m-del">刪除</button>'}<button class="btn" data-x>取消</button><button class="btn primary" id="m-save">儲存</button></div>`, { sticky: true });
+  const E = sh.el;
+  const tryClose = async () => { if (!dirty || await confirmBox('還沒儲存，確定要離開嗎？', { ok: '離開', danger: true })) sh.close(); };
+  $$('[data-x]', E).forEach(b => b.onclick = tryClose);
+  E.addEventListener('input', () => { dirty = true; });
+
+  $('#m-types', E).onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; m.type = b.dataset.t; dirty = true; $$('#m-types .chip', E).forEach(x => x.classList.toggle('on', x === b)); };
+  const drawPhotos = () => {
+    $('#m-photos', E).innerHTML = photos.map((p, i) => `<div class="pbox"><img src="${p.data}" alt=""><button class="x" data-rm="${i}" aria-label="移除">✕</button></div>`).join('');
+  };
+  $('#m-photos', E).onclick = e => { const b = e.target.closest('[data-rm]'); if (!b) return; const [p] = photos.splice(+b.dataset.rm, 1); if (!p.fresh) removed.push(p.id); dirty = true; drawPhotos(); };
+  const addFiles = async files => {
+    for (const f of files) {
+      try { photos.push({ id: uid(), data: await compressImage(f), fresh: true }); dirty = true; }
+      catch (e) { toast(e.message, true); }
+    }
+    drawPhotos();
+  };
+  $('#m-cam', E).onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+  $('#m-lib', E).onchange = e => { addFiles([...e.target.files]); e.target.value = ''; };
+
+  const drawTotals = () => { const t = mealTotals(m); $('#m-totals', E).innerHTML = NUTR.map(([k, l]) => `<div>${l}<b class="num">${r0(t[k])}</b>${k === 'kcal' ? 'kcal' : 'g'}</div>`).join(''); };
+  const drawItems = () => {
+    $('#m-items', E).innerHTML = m.items.map((it, i) => `
+      <div class="item" data-i="${i}">
+        <div class="item-top"><input class="in-name" data-f="name" value="${esc(it.name)}" placeholder="食物"><input class="in-portion" data-f="portion" value="${esc(it.portion)}" placeholder="份量"><button class="x sm" data-del="${i}" aria-label="刪除">✕</button></div>
+        <div class="item-nums">${NUTR.map(([k, l]) => `<label><span>${k === 'kcal' ? 'kcal' : l}</span><input inputmode="decimal" data-f="${k}" value="${it[k] ?? ''}"></label>`).join('')}</div>
+      </div>`).join('') || '<p class="sm muted">還沒有項目。按上面的 AI 分析，或手動新增。</p>';
+    drawTotals();
+  };
+  $('#m-items', E).addEventListener('input', e => {
+    const inp = e.target.closest('[data-f]'); const row = e.target.closest('[data-i]'); if (!inp || !row) return;
+    const it = m.items[+row.dataset.i]; const f = inp.dataset.f;
+    it[f] = (f === 'name' || f === 'portion') ? inp.value : num(inp.value);
+    drawTotals();
+  });
+  $('#m-items', E).addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (!b) return; m.items.splice(+b.dataset.del, 1); dirty = true; drawItems(); });
+  $('#m-additem', E).onclick = () => { m.items.push({ name: '', portion: '', kcal: 0, protein: 0, carbs: 0, fat: 0 }); dirty = true; drawItems(); const ins = $$('.in-name', E); ins[ins.length - 1]?.focus(); };
+
+  const drawAI = () => {
+    const a = m.ai; if (!a || (!a.comment && !a.questions?.length)) { $('#m-aibox', E).innerHTML = ''; return; }
+    $('#m-aibox', E).innerHTML = `<div class="ai">${a.comment ? `💬 ${esc(a.comment)}` : ''}
+      ${a.questions?.length ? `<div style="margin-top:6px"><b>❓ 需要你確認：</b><ul>${a.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ul><div class="xs muted">把答案補充到上面的說明欄，再按一次 AI 分析。</div></div>` : ''}</div>`;
+  };
+
+  $('#m-ai', E).onclick = e => busy(e.currentTarget, '分析中…', async () => {
+    const note = $('#m-note', E).value.trim();
+    if (!photos.length && !note) { toast('請先拍照，或在說明欄描述你吃了什麼', true); return; }
+    const date = $('#m-date', E).value || m.date;
+    const others = (await mealsOn(date)).filter(x => x.id !== m.id);
+    const before = sumTotals(others.map(mealTotals)); const T = S.settings.targets;
+    const prompt = `請分析這一餐。
+日期：${date}，${m.type}，時間 ${$('#m-time', E).value}
+使用者補充：${note || '（無）'}
+今天在這餐之外已經吃了：${r0(before.kcal)} kcal、蛋白質 ${r0(before.protein)} g、碳水 ${r0(before.carbs)} g、脂肪 ${r0(before.fat)} g
+每日目標：${T.kcal} kcal、蛋白質 ${T.protein} g、碳水 ${T.carbs} g、脂肪 ${T.fat} g
+${photos.length ? `附上 ${photos.length} 張照片。` : '沒有照片，只依文字描述估算。'}`;
+    try {
+      const out = await gemini({ system: MEAL_SYS, json: true, contents: [{ role: 'user', parts: [{ text: prompt }, ...photos.map(p => imgPart(p.data))] }] });
+      const j = parseJSON(out.text);
+      const items = (Array.isArray(j.items) ? j.items : []).map(it => ({ name: String(it.name || ''), portion: String(it.portion || ''), kcal: r0(num(it.kcal)), protein: r0(num(it.protein)), carbs: r0(num(it.carbs)), fat: r0(num(it.fat)) }));
+      if (!items.length) throw new Error('AI 沒有辨識出食物，請補充說明後再試');
+      m.items = items; dirty = true;
+      if (j.title && !$('#m-title', E).value.trim()) $('#m-title', E).value = String(j.title);
+      m.ai = { comment: String(j.comment || ''), questions: (Array.isArray(j.questions) ? j.questions : []).map(String).slice(0, 3), model: out.model, at: Date.now() };
+      drawItems(); drawAI();
+    } catch (err) { toast(err.message, true); }
+  });
+
+  $('#m-save', E).onclick = e => busy(e.currentTarget, '儲存中…', async () => {
+    m.date = $('#m-date', E).value || m.date; m.time = $('#m-time', E).value;
+    m.title = $('#m-title', E).value.trim(); m.note = $('#m-note', E).value.trim();
+    m.items = m.items.filter(it => it.name || num(it.kcal));
+    try {
+      for (const p of photos.filter(p => p.fresh)) {
+        await S.store.put('photos', { id: p.id, mealId: m.id, date: m.date, sortKey: `${m.date}T${m.time || '00:00'}#${p.id}`, data: p.data, createdAt: Date.now() });
+        S.photoCache.set(p.id, p.data);
+      }
+      for (const pid of removed) { await S.store.del('photos', pid); S.photoCache.delete(pid); }
+      // 日期或時間改了：更新照片的排序資訊
+      if (!isNew && (existing.date !== m.date || existing.time !== m.time)) {
+        for (const p of photos.filter(p => !p.fresh)) await S.store.put('photos', { id: p.id, mealId: m.id, date: m.date, sortKey: `${m.date}T${m.time || '00:00'}#${p.id}`, data: p.data, createdAt: Date.now() });
+      }
+      m.photoIds = photos.map(p => p.id); m.updatedAt = Date.now();
+      await S.store.put('meals', m);
+      sh.close(); toast('已儲存'); if (m.date !== S.date && isNew) S.date = m.date; render();
+    } catch (err) { toast('儲存失敗：' + fbErr(err), true); }
+  });
+  if (!isNew) $('#m-del', E).onclick = async () => {
+    if (!await confirmBox('確定刪除這一餐（含照片）？', { ok: '刪除', danger: true })) return;
+    for (const pid of m.photoIds) { await S.store.del('photos', pid); S.photoCache.delete(pid); }
+    await S.store.del('meals', m.id); sh.close(); toast('已刪除'); render();
+  };
+  drawPhotos(); drawItems(); drawAI();
+}
+
+/* ====================== 照片牆 ====================== */
+async function viewPhotos(el, tk, append=false){
+  const lim = 24;
+  const rows = await S.store.range('photos', 'sortKey', { ...(append && S.photoCursor ? { lt: S.photoCursor } : {}), desc: true, limit: lim });
+  if (tk !== S.tk) return;
+  if (!append) S.photoList = [];
+  S.photoList.push(...rows.filter(r => isImgData(r.data)));
+  rows.forEach(r => S.photoCache.set(r.id, r.data));
+  S.photoCursor = rows.length ? rows[rows.length - 1].sortKey : S.photoCursor;
+  const groups = {}; S.photoList.forEach(p => (groups[p.date] = groups[p.date] || []).push(p));
+  el.innerHTML = `
+  <div class="seg"><button data-act="go" data-tab="food">餐點紀錄</button><button class="on">照片牆</button></div>
+  ${Object.keys(groups).length ? Object.entries(groups).map(([dt, ps]) => `
+    <div class="gday">${fmtDate(dt)}</div>
+    <div class="ggrid">${ps.map(p => `<button data-act="photo" data-id="${esc(p.id)}" data-meal="${esc(p.mealId)}"><img src="${p.data}" alt="" loading="lazy"><span class="cap">${esc((p.sortKey || '').slice(11, 16))}</span></button>`).join('')}</div>`).join('')
+    : '<div class="card"><p class="empty">還沒有照片。記錄餐點時拍照，就會出現在這裡。</p></div>'}
+  ${rows.length === lim ? '<button class="btn wide" style="margin-top:12px" data-act="more-photos">載入更多</button>' : ''}`;
+}
+async function openPhotoView(pid, mealId){
+  const [src, meal] = await Promise.all([getPhoto(pid), S.store.get('meals', mealId)]);
+  const sh = openSheet(`<div class="sheet-h"><b>${meal ? `${esc(meal.type)}・${fmtDate(meal.date)} ${esc(meal.time || '')}` : '照片'}</b><button class="x" data-close>✕</button></div>
+    <div class="sheet-b">${src ? `<img class="lightimg" src="${src}" alt="">` : ''}
+    ${meal ? `${meal.title ? `<div class="b" style="margin-bottom:6px">${esc(meal.title)}</div>` : ''}${itemsTable(meal.items)}${meal.ai?.comment ? `<div class="ai">💬 ${esc(meal.ai.comment)}</div>` : ''}` : '<p class="muted">找不到對應的餐點</p>'}</div>
+    ${meal ? '<div class="sheet-f"><button class="btn" data-goto>看那天</button><button class="btn primary" data-edit>編輯餐點</button></div>' : ''}`);
+  if (meal) {
+    $('[data-edit]', sh.el).onclick = () => { sh.close(); openMealEditor(meal); };
+    $('[data-goto]', sh.el).onclick = () => { sh.close(); S.date = meal.date; goTab('food'); };
+  }
+}
+
+/* ====================== 運動 ====================== */
+async function viewTrain(el, tk){
+  const d = S.date;
+  const [wos, day, hist] = await Promise.all([woOn(d), S.store.get('days', d), S.store.range('workouts', 'date', { gte: addDays(d, -365), lte: addDays(todayStr(), 1), desc: true, limit: 600 })]);
+  if (tk !== S.tk) return;
+  S.woHist = hist;
+  const str = wos.filter(w => w.kind === 'strength'), car = wos.filter(w => w.kind === 'cardio');
+  const prevOf = w => hist.filter(h => h.kind === 'strength' && h.name === w.name && (h.date < w.date || (h.date === w.date && (h.createdAt || 0) < (w.createdAt || 0)))).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))[0];
+  const exNames = [...new Set(hist.filter(h => h.kind === 'strength').map(h => h.name))];
+  if (!S.progEx || !exNames.includes(S.progEx)) S.progEx = exNames[0] || null;
+  const prog = hist.filter(h => h.kind === 'strength' && h.name === S.progEx);
+  const progPts = Object.values(prog.reduce((a, w) => { const t = topSet(w.sets); if (Number.isFinite(t.w) && (!a[w.date] || t.w > a[w.date].y)) a[w.date] = { x: w.date, y: t.w }; return a; }, {}));
+  const repPts = Object.values(prog.reduce((a, w) => { const r = (w.sets || []).reduce((s, x) => s + num(x.r), 0); a[w.date] = { x: w.date, y: (a[w.date]?.y || 0) + r }; return a; }, {}));
+  const sessions = Object.entries(hist.reduce((a, w) => { (a[w.date] = a[w.date] || []).push(w); return a; }, {})).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
+  const dayTags = Object.fromEntries((await S.store.range('days', 'date', { gte: sessions.at(-1)?.[0] || d, lte: sessions[0]?.[0] || d })).map(x => [x.date, x.tag]));
+  if (tk !== S.tk) return;
+
+  el.innerHTML = `
+  ${syncBanner()}
+  <div class="card">
+    <label style="margin:0">今天的訓練<input id="w-tag" list="dl-tags2" placeholder="例如 拉日、推日、腿日、有氧" value="${esc(day?.tag || '')}"></label>
+    <datalist id="dl-tags2">${TAGS.map(t => `<option value="${t}">`).join('')}</datalist>
+    <div class="row" style="margin-top:10px"><button class="btn primary" style="flex:1" data-act="add-str">＋ 重訓動作</button><button class="btn ghost" style="flex:1" data-act="add-cardio">＋ 有氧</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>🏋️ 重訓</h3><span class="sm muted">${str.length} 個動作・${str.reduce((s, w) => s + (w.sets || []).length, 0)} 組</span></div>
+    ${str.map(w => { const p = prevOf(w); const hint = progressHint(w); return `
+      <div class="wo" data-act="edit-wo" data-id="${esc(w.id)}">
+        <div class="t"><span>${esc(w.name)}</span><span class="sm">${compareSets(w, p)}</span></div>
+        <div class="sets">${(w.sets || []).map(s => `<span class="set num">${esc(fmtW(s.w))} × ${esc(s.r)}</span>`).join('')}</div>
+        ${p ? `<div class="xs muted" style="margin-top:4px">上次 ${fmtMD(p.date)}：${esc(setsStr(p.sets))}</div>` : ''}
+        ${hint ? `<div class="hint ok">${hint}</div>` : ''}
+        ${w.note ? `<div class="xs muted">📝 ${esc(w.note)}</div>` : ''}
+      </div>`; }).join('') || '<p class="empty">這天還沒有重訓紀錄</p>'}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>🏃 有氧</h3><span class="sm muted num">${r0(car.reduce((s, w) => s + num(w.minutes), 0))} 分・${r0(car.reduce((s, w) => s + num(w.kcal), 0))} kcal</span></div>
+    ${car.map(w => `<div class="wo" data-act="edit-wo" data-id="${esc(w.id)}"><div class="t"><span>${esc(w.name)}</span><span class="num sm">${r0(w.kcal)} kcal</span></div>
+      <div class="sm muted num">${r0(w.minutes)} 分鐘・強度${esc(w.intensity || '中')}${w.distance ? `・${esc(w.distance)} km` : ''}${w.hr ? `・平均心率 ${esc(w.hr)}` : ''}${w.manualKcal ? '・手動熱量' : ''}</div>
+      ${w.note ? `<div class="xs muted">📝 ${esc(w.note)}</div>` : ''}</div>`).join('') || '<p class="empty">這天還沒有有氧紀錄</p>'}
+    <p class="xs muted" style="margin:8px 0 0">每日熱量目標已經把正常訓練算進去了，有氧消耗僅供參考，不用另外「吃回來」。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>📈 動作進步追蹤</h3></div>
+    ${exNames.length ? `<select id="w-prog" style="width:100%;margin-bottom:8px">${exNames.map(n => `<option ${n === S.progEx ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <div class="sm b" style="margin:4px 0">最佳組重量（kg）</div>${lineChart([{ name: '最佳組重量', color: 'var(--accent)', points: progPts }], { h: 130 })}
+      <div class="sm b" style="margin:10px 0 4px">總次數</div>${lineChart([{ name: '總次數', color: 'var(--c)', points: repPts }], { h: 110 })}
+      <p class="xs muted" style="margin:6px 0 0">輔助器材的數字是負的，越接近 0 代表進步。減脂期只要重量和次數守得住，就代表肌肉有保住。</p>` : '<p class="empty">記錄幾次重訓後，這裡會顯示進步曲線</p>'}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>🗓️ 最近訓練</h3></div>
+    ${sessions.map(([dt, ws]) => `<div class="hist" data-act="goto-date" data-date="${dt}"><span><b>${fmtDate(dt)}</b> ${dayTags[dt] ? `<span class="tagline">${esc(dayTags[dt])}</span>` : ''}<br><span class="xs muted">${esc(ws.map(w => w.name).join('、'))}</span></span><span class="muted">›</span></div>`).join('') || '<p class="empty">還沒有紀錄</p>'}
+  </div>`;
+  $('#w-tag').onchange = async () => { await updateDay(d, { tag: $('#w-tag').value.trim() }); toast('已更新訓練類型'); };
+  const sel = $('#w-prog'); if (sel) sel.onchange = () => { S.progEx = sel.value; render(); };
+}
+
+function openStrengthEditor(existing){
+  const isNew = !existing;
+  const o = existing ? clone(existing) : { id: uid(), date: S.date, kind: 'strength', name: '', sets: [{ w: '', r: '' }, { w: '', r: '' }], note: '', createdAt: Date.now() };
+  const names = [...new Set([...S.woHist.filter(h => h.kind === 'strength').map(h => h.name), ...COMMON_EX])];
+  const sh = openSheet(`
+    <div class="sheet-h"><b>${isNew ? '新增重訓動作' : '編輯重訓動作'}</b><button class="x" data-close>✕</button></div>
+    <div class="sheet-b">
+      <label>動作名稱<input id="s-name" list="dl-ex" value="${esc(o.name)}" placeholder="例如 坐姿划船"></label>
+      <datalist id="dl-ex">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <div id="s-last"></div>
+      <div class="setrow xs muted"><span></span><span>重量 kg（輔助填負數）</span><span>次數</span><span></span></div>
+      <div id="s-sets"></div>
+      <div class="row"><button class="btn sm" id="s-add">＋ 加一組</button><span class="sp"></span><button class="btn sm ghost" id="s-copy" hidden>帶入上次</button></div>
+      <label style="margin-top:12px">備註<input id="s-note" value="${esc(o.note)}" placeholder="例如 左右各兩組、最後一組力竭"></label>
+    </div>
+    <div class="sheet-f">${isNew ? '' : '<button class="btn danger" id="s-del">刪除</button>'}<button class="btn primary" id="s-save">儲存</button></div>`, { sticky: true });
+  const E = sh.el;
+  const lastOf = name => S.woHist.filter(h => h.kind === 'strength' && h.name === name && h.id !== o.id).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))[0];
+  const drawLast = () => {
+    const l = lastOf($('#s-name', E).value.trim());
+    $('#s-last', E).innerHTML = l ? `<div class="lastbox">上次 ${fmtDate(l.date)}：<b>${esc(setsStr(l.sets))}</b>${progressHint(l) ? `<div class="ok xs">${progressHint(l)}</div>` : ''}</div>` : '';
+    $('#s-copy', E).hidden = !l;
+  };
+  const drawSets = () => {
+    $('#s-sets', E).innerHTML = o.sets.map((s, i) => `<div class="setrow" data-i="${i}"><span class="n">${i + 1}</span><input inputmode="decimal" data-f="w" value="${s.w ?? ''}" placeholder="kg"><input inputmode="numeric" data-f="r" value="${s.r ?? ''}" placeholder="次"><button class="x sm" data-del="${i}">✕</button></div>`).join('');
+  };
+  $('#s-sets', E).addEventListener('input', e => { const i = e.target.closest('[data-i]'); if (!i) return; o.sets[+i.dataset.i][e.target.dataset.f] = e.target.value; });
+  $('#s-sets', E).addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (!b) return; o.sets.splice(+b.dataset.del, 1); drawSets(); });
+  $('#s-add', E).onclick = () => { const l = o.sets[o.sets.length - 1]; o.sets.push({ w: l?.w ?? '', r: '' }); drawSets(); };
+  $('#s-copy', E).onclick = () => { const l = lastOf($('#s-name', E).value.trim()); if (l) { o.sets = l.sets.map(s => ({ w: s.w, r: s.r })); drawSets(); } };
+  $('#s-name', E).addEventListener('input', drawLast);
+  $('#s-save', E).onclick = async () => {
+    o.name = $('#s-name', E).value.trim(); o.note = $('#s-note', E).value.trim();
+    if (!o.name) return toast('請填動作名稱', true);
+    o.sets = o.sets.filter(s => String(s.w).trim() !== '' || String(s.r).trim() !== '').map(s => ({ w: num(s.w), r: r0(num(s.r)) }));
+    if (!o.sets.length) return toast('請至少填一組', true);
+    o.updatedAt = Date.now(); await S.store.put('workouts', o);
+    sh.close(); toast('已儲存'); render();
+  };
+  if (!isNew) $('#s-del', E).onclick = async () => { if (await confirmBox('確定刪除這個動作？', { ok: '刪除', danger: true })) { await S.store.del('workouts', o.id); sh.close(); render(); } };
+  drawSets(); drawLast();
+}
+
+async function openCardioEditor(existing){
+  const isNew = !existing;
+  const o = existing ? clone(existing) : { id: uid(), date: S.date, kind: 'cardio', name: '快走', minutes: 30, intensity: '中', kcal: 0, manualKcal: false, distance: '', hr: '', note: '', createdAt: Date.now() };
+  const bw = (await latestWeight()) || 80;
+  const sh = openSheet(`
+    <div class="sheet-h"><b>${isNew ? '新增有氧' : '編輯有氧'}</b><button class="x" data-close>✕</button></div>
+    <div class="sheet-b">
+      <label>項目<select id="c-name">${Object.keys(CARDIO).map(k => `<option ${k === o.name ? 'selected' : ''}>${k}</option>`).join('')}${CARDIO[o.name] ? '' : `<option selected>${esc(o.name)}</option>`}</select></label>
+      <div class="seg" id="c-int">${INTENS.map(x => `<button data-v="${x}" class="${x === o.intensity ? 'on' : ''}">強度 ${x}</button>`).join('')}</div>
+      <div class="fgrid">
+        <label>時間（分鐘）<input id="c-min" inputmode="numeric" value="${esc(o.minutes)}"></label>
+        <label>消耗熱量（kcal）<input id="c-kcal" inputmode="numeric" value="${esc(r0(o.kcal))}"></label>
+        <label>距離（km，選填）<input id="c-dist" inputmode="decimal" value="${esc(o.distance)}"></label>
+        <label>平均心率（選填）<input id="c-hr" inputmode="numeric" value="${esc(o.hr)}"></label>
+      </div>
+      <p class="xs muted" id="c-info" style="margin:0 0 10px"></p>
+      <label>備註<input id="c-note" value="${esc(o.note)}"></label>
+    </div>
+    <div class="sheet-f">${isNew ? '' : '<button class="btn danger" id="c-del">刪除</button>'}<button class="btn primary" id="c-save">儲存</button></div>`, { sticky: true });
+  const E = sh.el;
+  const calc = () => {
+    const met = (CARDIO[$('#c-name', E).value] || CARDIO['其他'])[INTENS.indexOf(o.intensity)] || 5;
+    const k = met * bw * num($('#c-min', E).value) / 60;
+    if (!o.manualKcal) $('#c-kcal', E).value = r0(k);
+    $('#c-info', E).textContent = o.manualKcal ? `已改成手動輸入（例如手錶的數據）。估算值約 ${r0(k)} kcal。` : `依體重 ${r1(bw)}kg、MET ${met} 估算。有手錶數據的話可以直接改。`;
+  };
+  $('#c-int', E).onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; o.intensity = b.dataset.v; $$('#c-int button', E).forEach(x => x.classList.toggle('on', x === b)); calc(); };
+  $('#c-name', E).onchange = calc; $('#c-min', E).oninput = calc;
+  $('#c-kcal', E).oninput = () => { o.manualKcal = true; calc(); };
+  $('#c-save', E).onclick = async () => {
+    Object.assign(o, { name: $('#c-name', E).value, minutes: num($('#c-min', E).value), kcal: num($('#c-kcal', E).value), distance: $('#c-dist', E).value.trim(), hr: $('#c-hr', E).value.trim(), note: $('#c-note', E).value.trim(), updatedAt: Date.now() });
+    if (!o.minutes) return toast('請填時間', true);
+    await S.store.put('workouts', o); sh.close(); toast('已儲存'); render();
+  };
+  if (!isNew) $('#c-del', E).onclick = async () => { if (await confirmBox('確定刪除這筆有氧？', { ok: '刪除', danger: true })) { await S.store.del('workouts', o.id); sh.close(); render(); } };
+  calc();
+}
+
+/* ====================== 身體 ====================== */
+async function viewBody(el, tk){
+  const recs = (await S.store.all('body')).sort((a, b) => a.date.localeCompare(b.date));
+  const days = await S.store.range('days', 'date', { gte: addDays(todayStr(), -180), lte: todayStr() });
+  if (tk !== S.tk) return;
+  const mach = r => r.machine || '未指定機型';
+  const machines = [...new Set(recs.map(mach))];
+  if (!S.bodyMachine || !machines.includes(S.bodyMachine)) S.bodyMachine = recs.length ? mach(recs[recs.length - 1]) : null;
+  const f = recs.filter(r => mach(r) === S.bodyMachine);
+  const last = f.at(-1), prev = f.at(-2), first = f[0];
+  const tile = ([k, l, u, good]) => {
+    if (!last || last[k] == null) return '';
+    const d = prev && prev[k] != null ? last[k] - prev[k] : null;
+    const cls = d == null || d === 0 || !good ? 'muted' : (d * good > 0 ? 'ok' : 'bad');
+    return `<div class="stat"><div class="l">${l}</div><div class="v num">${r1(last[k])}<span class="sm"> ${u}</span></div>${d != null ? `<div class="d ${cls} num">${d > 0 ? '+' : ''}${r1(d)} 比上次</div>` : ''}</div>`;
+  };
+  const pts = k => f.filter(r => r[k] != null).map(r => ({ x: r.date, y: num(r[k]) }));
+  const wDaily = days.filter(x => num(x.weight) > 0).map(x => ({ x: x.date, y: num(x.weight) }));
+  const wRep = recs.filter(r => r.weight != null).map(r => ({ x: r.date, y: num(r.weight) }));
+  el.innerHTML = `
+  ${syncBanner()}
+  <button class="btn primary wide" data-act="add-body" style="margin-bottom:12px;padding:12px">＋ 新增身體組成紀錄</button>
+  ${recs.length ? `
+  ${machines.length > 1 ? `<div class="chips">${machines.map(m => `<button class="chip ${m === S.bodyMachine ? 'on' : ''}" data-act="body-mach" data-m="${esc(m)}">${esc(m)}</button>`).join('')}</div><p class="xs muted" style="margin:-2px 2px 8px">不同機型的數字不能直接比，趨勢請看同一台機器。</p>` : ''}
+  <div class="card">
+    <div class="card-h"><h3>最新：${fmtDate(last.date)}</h3><span class="sm muted">${esc(mach(last))}</span></div>
+    <div class="stats">${BODY_FIELDS.slice(0, 7).map(tile).join('')}</div>
+    ${first && first !== last ? `<p class="sm" style="margin:10px 0 0">從 ${fmtMD(first.date)} 到現在：${first.fatKg != null && last.fatKg != null ? `體脂肪 <b class="${last.fatKg <= first.fatKg ? 'ok' : 'bad'}">${last.fatKg - first.fatKg > 0 ? '+' : ''}${r1(last.fatKg - first.fatKg)} kg</b>` : ''}${first.smm != null && last.smm != null ? `、骨骼肌 <b class="${last.smm >= first.smm - 0.3 ? 'ok' : 'bad'}">${last.smm - first.smm > 0 ? '+' : ''}${r1(last.smm - first.smm)} kg</b>` : ''}</p>` : ''}
+  </div>
+  <div class="card"><div class="card-h"><h3>體脂肪 vs 骨骼肌（kg）</h3></div>${lineChart([{ name: '體脂肪', color: 'var(--f)', points: pts('fatKg') }, { name: '骨骼肌', color: 'var(--accent)', points: pts('smm') }])}</div>
+  <div class="card"><div class="card-h"><h3>體脂率（%）</h3></div>${lineChart([{ name: '體脂率', color: 'var(--c)', points: pts('pbf') }])}</div>` : '<div class="card"><p class="empty">還沒有身體組成紀錄。可以手動輸入，或拍 InBody 報告讓 AI 讀取數字。</p></div>'}
+  <div class="card"><div class="card-h"><h3>體重趨勢（kg）</h3></div>${lineChart([{ name: '晨起體重', color: 'var(--water)', points: wDaily, dot: 2.2 }, { name: '報告體重', color: 'var(--p)', points: wRep }])}
+    <p class="xs muted" style="margin:6px 0 0">建議每天早上起床、上完廁所後量體重，在「今日」頁填寫。看每週平均，不要只看單日。</p></div>
+  ${recs.length ? `<div class="card"><div class="card-h"><h3>所有紀錄</h3></div>${[...recs].reverse().map(r => `<div class="hist" data-act="edit-body" data-id="${esc(r.id)}"><span><b>${fmtDate(r.date)}</b> <span class="xs muted">${esc(mach(r))}</span><br><span class="sm muted num">${r.weight != null ? `${r1(r.weight)}kg` : ''}${r.smm != null ? `・肌 ${r1(r.smm)}` : ''}${r.fatKg != null ? `・脂 ${r1(r.fatKg)}` : ''}${r.pbf != null ? `・${r1(r.pbf)}%` : ''}</span></span><span class="muted">›</span></div>`).join('')}</div>` : ''}`;
+}
+
+function openBodyEditor(existing){
+  const isNew = !existing;
+  const o = existing ? clone(existing) : { id: uid(), date: todayStr(), machine: S.bodyMachine && S.bodyMachine !== '未指定機型' ? S.bodyMachine : '', note: '' };
+  const sh = openSheet(`
+    <div class="sheet-h"><b>${isNew ? '新增身體組成' : '編輯身體組成'}</b><button class="x" data-close>✕</button></div>
+    <div class="sheet-b">
+      <label class="btn ghost wide" style="margin-bottom:12px;color:var(--text)" id="b-aiwrap">📄 拍報告／選照片，讓 AI 自動填數字<input type="file" accept="image/*" hidden id="b-file"></label>
+      <div class="fgrid">
+        <label>日期<input type="date" id="b-date" value="${esc(o.date)}"></label>
+        <label>機型<input id="b-machine" list="dl-mach" value="${esc(o.machine)}" placeholder="例如 ACCUNIQ BC380"></label>
+        ${BODY_FIELDS.map(([k, l, u]) => `<label>${l}${u ? `（${u}）` : ''}<input inputmode="decimal" data-k="${k}" value="${o[k] ?? ''}"></label>`).join('')}
+      </div>
+      <datalist id="dl-mach"><option value="ACCUNIQ BC380"><option value="InBody 230"><option value="InBody 270"><option value="InBody 570"><option value="Tanita"></datalist>
+      <label>備註<input id="b-note" value="${esc(o.note)}"></label>
+    </div>
+    <div class="sheet-f">${isNew ? '' : '<button class="btn danger" id="b-del">刪除</button>'}<button class="btn primary" id="b-save">儲存</button></div>`, { sticky: true });
+  const E = sh.el;
+  $('#b-file', E).onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const wrap = $('#b-aiwrap', E); const old = wrap.firstChild.textContent; wrap.firstChild.textContent = '⏳ AI 讀取中…';
+    try {
+      const data = await compressImage(f, 1600, 0.85);
+      const out = await gemini({ system: BODY_SYS, json: true, contents: [{ role: 'user', parts: [{ text: '請擷取這張報告的數值。' }, imgPart(data)] }] });
+      const j = parseJSON(out.text); let n = 0;
+      BODY_FIELDS.forEach(([k]) => { const v = numOrNull(j[k]); if (v != null) { $(`[data-k="${k}"]`, E).value = v; n++; } });
+      if (j.date && /^\d{4}-\d{2}-\d{2}$/.test(j.date)) $('#b-date', E).value = j.date;
+      if (j.machine) $('#b-machine', E).value = j.machine;
+      toast(`已填入 ${n} 個數值，請核對後儲存`);
+    } catch (err) { toast(err.message, true); }
+    finally { wrap.firstChild.textContent = old; }
+  };
+  $('#b-save', E).onclick = async () => {
+    o.date = $('#b-date', E).value || todayStr(); o.machine = $('#b-machine', E).value.trim(); o.note = $('#b-note', E).value.trim();
+    BODY_FIELDS.forEach(([k]) => { o[k] = numOrNull($(`[data-k="${k}"]`, E).value); });
+    if (BODY_FIELDS.every(([k]) => o[k] == null)) return toast('請至少填一個數值', true);
+    o.updatedAt = Date.now(); await S.store.put('body', o); S.bodyMachine = o.machine || '未指定機型'; sh.close(); toast('已儲存'); render();
+  };
+  if (!isNew) $('#b-del', E).onclick = async () => { if (await confirmBox('確定刪除這筆紀錄？', { ok: '刪除', danger: true })) { await S.store.del('body', o.id); sh.close(); render(); } };
+}
+
+/* ====================== 教練 ====================== */
+async function buildCoachSystem(){
+  const d = todayStr(), T = S.settings.targets, P = S.settings.profile;
+  const [meals, wos, day, wk, wkDays, body, hist] = await Promise.all([
+    mealsOn(d), woOn(d), S.store.get('days', d),
+    S.store.range('meals', 'date', { gte: addDays(d, -7), lte: addDays(d, -1) }),
+    S.store.range('days', 'date', { gte: addDays(d, -14), lte: d }),
+    S.store.all('body'),
+    S.store.range('workouts', 'date', { gte: addDays(d, -35), lte: d })
+  ]);
+  const tot = sumTotals(meals.map(mealTotals));
+  const L = [];
+  L.push(`你是使用者的專屬飲食健身教練，用繁體中文（台灣用語）回答。`);
+  L.push(`原則：回答精簡、適合手機閱讀，重點用粗體或短列表，必要時用表格；數字是估算時要說明；建議要具體（台灣外食、便利商店買得到的例子）；不鼓勵極端節食；使用者提到疼痛、頭暈等不適時，建議就醫、不要硬練。今天是 ${d}（週${WD[new Date().getDay()]}），現在 ${nowHM()}。`);
+  L.push(`\n【個人資料】${P.sex || ''} ${P.age ? P.age + ' 歲' : ''} ${P.height ? '身高 ' + P.height + ' cm' : ''}`);
+  L.push(`【每日目標】熱量 ${T.kcal} kcal、蛋白質 ${T.protein} g、碳水 ${T.carbs} g、脂肪 ${T.fat} g、水 ${T.water} ml`);
+  if (S.settings.coachNotes) L.push(`【教練備註（目標、背景、習慣）】\n${S.settings.coachNotes}`);
+  const br = [...body].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  if (br.length) L.push(`\n【身體組成紀錄（新到舊）】\n` + br.map(r => `${r.date} ${r.machine || ''}：` + BODY_FIELDS.filter(([k]) => r[k] != null).map(([k, l, u]) => `${l} ${r1(r[k])}${u}`).join('、')).join('\n'));
+  const dw = wkDays.filter(x => num(x.weight) > 0);
+  if (dw.length) L.push(`【最近晨起體重】` + dw.map(x => `${fmtMD(x.date)} ${x.weight}kg`).join('、'));
+  L.push(`\n【今天 ${d} 的飲食】` + (meals.length ? '\n' + meals.map(m => { const t = mealTotals(m); return `- ${m.time || ''} ${m.type}${m.title ? '：' + m.title : ''}（${r0(t.kcal)} kcal／蛋白質 ${r0(t.protein)}g／碳水 ${r0(t.carbs)}g／脂肪 ${r0(t.fat)}g）明細：${(m.items || []).map(i => `${i.name}${i.portion ? '(' + i.portion + ')' : ''}`).join('、')}${m.note ? '；備註：' + m.note : ''}`; }).join('\n') : '還沒有紀錄'));
+  L.push(`今天累計：${r0(tot.kcal)} kcal、蛋白質 ${r0(tot.protein)} g、碳水 ${r0(tot.carbs)} g、脂肪 ${r0(tot.fat)} g；剩餘：${r0(T.kcal - tot.kcal)} kcal、蛋白質 ${r0(T.protein - tot.protein)} g。喝水 ${r0(day?.water)} ml。${day?.tag ? '今天訓練：' + day.tag : ''}`);
+  if (wos.length) L.push(`今天運動：` + wos.map(w => w.kind === 'strength' ? `${w.name} ${setsStr(w.sets)}` : `${w.name} ${w.minutes} 分（約 ${r0(w.kcal)} kcal）`).join('；'));
+  const by = {}; wk.forEach(m => { by[m.date] = sumTotals([by[m.date] || ZERO(), mealTotals(m)]); });
+  const tags = Object.fromEntries(wkDays.map(x => [x.date, x.tag]));
+  const past = [...Array(7)].map((_, i) => addDays(d, -7 + i));
+  L.push(`\n【前 7 天每日總量】\n` + past.map(x => `${x}：${by[x] ? `${r0(by[x].kcal)} kcal、蛋白質 ${r0(by[x].protein)}g` : '沒有飲食紀錄'}${tags[x] ? '，訓練：' + tags[x] : ''}`).join('\n'));
+  const latest = {}; [...hist].sort((a, b) => b.date.localeCompare(a.date)).forEach(w => { const k = w.kind + ':' + w.name; if (!latest[k]) latest[k] = []; if (latest[k].length < 2) latest[k].push(w); });
+  const lines = Object.values(latest).map(ws => ws.map(w => w.kind === 'strength' ? `${w.date} ${w.name}：${setsStr(w.sets)}` : `${w.date} ${w.name} ${w.minutes} 分 ${w.intensity || ''}`).join('｜'));
+  if (lines.length) L.push(`\n【最近 5 週各動作最近兩次紀錄（重量負數代表輔助器材）】\n` + lines.join('\n'));
+  return L.join('\n');
+}
+
+async function viewCoach(el, tk){
+  const msgs = (await S.store.range('chat', 'ts', { gte: 0, desc: true, limit: 60 })).reverse();
+  if (tk !== S.tk) return;
+  const welcome = `<div class="msg model"><p>嗨！我是你的飲控健身教練 💪</p><p>我看得到你記錄的飲食、運動和身體數據。可以問我「下一餐吃什麼」、請我總結今天，也可以傳菜單照片問我怎麼點。</p></div>`;
+  el.innerHTML = `
+  ${S.settings.geminiKey ? '' : `<div class="banner"><span>請先到設定貼上 Gemini API key。</span><button class="btn sm" data-act="go" data-tab="settings">設定</button></div>`}
+  <div class="chat" id="chat">${msgs.length ? msgs.map(msgHtml).join('') : welcome}</div>
+  <div class="chips">${QUICK.map((q, i) => `<button class="chip" data-act="quick" data-i="${i}">${q.label}</button>`).join('')}${msgs.length ? '<button class="chip" data-act="clear-chat">🗑️ 清除對話</button>' : ''}</div>
+  <div id="c-prev"></div>
+  <form class="composer" id="composer">
+    <label class="icon" aria-label="附加照片">📎<input type="file" accept="image/*" hidden id="c-img"></label>
+    <textarea id="c-text" rows="1" placeholder="問教練…"></textarea>
+    <button class="btn primary" id="c-send" type="submit">送出</button>
+  </form>`;
+  const ta = $('#c-text');
+  ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; };
+  ta.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && window.matchMedia('(pointer:fine)').matches) { e.preventDefault(); $('#composer').requestSubmit(); } };
+  $('#composer').onsubmit = e => { e.preventDefault(); sendChat(ta.value); };
+  $('#c-img').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { S.chatImg = await compressImage(f); drawChatPrev(); } catch (err) { toast(err.message, true); } };
+  drawChatPrev();
+  requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+  if (S.pendingQ) { const q = S.pendingQ; S.pendingQ = null; sendChat(q); }
+}
+function drawChatPrev(){
+  const p = $('#c-prev'); if (!p) return;
+  p.innerHTML = S.chatImg ? `<div class="cprev"><img src="${S.chatImg}" alt=""><span class="sm muted">會附上這張照片</span><button class="x sm" id="c-rmimg">✕</button></div>` : '';
+  const b = $('#c-rmimg'); if (b) b.onclick = () => { S.chatImg = null; drawChatPrev(); };
+}
+const msgHtml = m => m.role === 'user'
+  ? `<div class="msg user">${m.hasImg ? '🖼️ ' : ''}${esc(m.text)}</div>`
+  : `<div class="msg model">${md(m.text)}</div>`;
+async function sendChat(text){
+  text = String(text || '').trim(); const img = S.chatImg;
+  if ((!text && !img) || S.chatBusy) return;
+  if (!S.settings.geminiKey) { toast('請先到設定貼上 Gemini API key', true); return; }
+  S.chatBusy = true;
+  const chat = $('#chat'); if (chat && !chat.querySelector('.msg.user') && chat.children.length === 1) chat.innerHTML = '';
+  const um = { id: uid(), ts: Date.now(), role: 'user', text: text || '（傳了一張照片）', hasImg: !!img };
+  chat?.insertAdjacentHTML('beforeend', msgHtml(um) + `<div class="msg model" id="typing"><span class="spinner"></span> 教練思考中…</div>`);
+  const ta = $('#c-text'); if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+  S.chatImg = null; drawChatPrev(); window.scrollTo(0, document.body.scrollHeight);
+  const sendBtn = $('#c-send'); if (sendBtn) sendBtn.disabled = true;
+  try {
+    await S.store.put('chat', um);
+    const hist = (await S.store.range('chat', 'ts', { gte: 0, desc: true, limit: 16 })).reverse();
+    while (hist.length && hist[0].role !== 'user') hist.shift();
+    const contents = [];
+    for (const h of hist) {
+      const role = h.role === 'model' ? 'model' : 'user'; const t = h.text || '（照片）';
+      const last = contents[contents.length - 1];
+      if (last && last.role === role) last.parts[0].text += '\n\n' + t; else contents.push({ role, parts: [{ text: t }] });
+    }
+    if (!contents.length) contents.push({ role: 'user', parts: [{ text: um.text }] });
+    if (img) contents[contents.length - 1].parts.push(imgPart(img));
+    const out = await gemini({ system: await buildCoachSystem(), contents });
+    const mm = { id: uid(), ts: Date.now(), role: 'model', text: out.text };
+    await S.store.put('chat', mm);
+    $('#typing')?.remove(); $('#chat')?.insertAdjacentHTML('beforeend', msgHtml(mm));
+  } catch (e) {
+    $('#typing')?.remove(); $('#chat')?.insertAdjacentHTML('beforeend', `<div class="msg model"><b class="bad">⚠️ ${esc(e.message)}</b></div>`);
+  } finally {
+    S.chatBusy = false; if (sendBtn) sendBtn.disabled = false;
+    requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+  }
+}
+
+/* ====================== 設定 ====================== */
+const RULES = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}`;
+async function viewSettings(el, tk){
+  const st = S.settings, cfg = getFbConfig(), cloud = S.store.kind === 'cloud';
+  let localCount = 0;
+  if (cloud) { try { for (const c of ['meals', 'workouts', 'body', 'days']) localCount += (await S.local.all(c)).length; } catch {} }
+  if (tk !== S.tk) return;
+  el.innerHTML = `
+  <div class="card">
+    <div class="card-h"><h3>☁️ 跨裝置同步（Firebase）</h3>${cloud ? '<span class="badge cloud">已同步</span>' : ''}</div>
+    ${S.fbError ? `<div class="banner warn">${esc(S.fbError)}</div>` : ''}
+    ${!cfg ? `
+      <p class="sm muted" style="margin-top:0">目前資料只存在這台裝置。照下面「設定教學」建立 Firebase 專案後，把設定貼進來：</p>
+      <label>Firebase 設定（整段貼上即可）<textarea id="fb-cfg" rows="5" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };'></textarea></label>
+      <button class="btn primary" id="fb-save">連線</button>`
+    : cloud ? `
+      <p style="margin-top:0">已登入：<b>${esc(S.user?.email || '')}</b></p>
+      <p class="sm muted">在手機和電腦用同一個帳號登入，資料就會同步。離線時也能記錄，連線後會自動上傳。</p>
+      ${localCount ? `<div class="banner"><span>這台裝置還有 ${localCount} 筆登入前的本機紀錄。</span><button class="btn sm" id="fb-upload">上傳到雲端</button></div>` : ''}
+      <div class="row"><button class="btn" id="fb-out">登出</button></div>`
+    : `
+      <p class="sm muted" style="margin-top:0">${S.fbLoading ? '連線中…' : '請登入。第一次使用請按「註冊」建立帳號，其他裝置用同一組帳號密碼登入。'}</p>
+      <label>Email<input id="fb-email" type="email" autocomplete="username"></label>
+      <label>密碼（至少 6 個字元）<input id="fb-pw" type="password" autocomplete="current-password"></label>
+      <div class="row wrap"><button class="btn primary" id="fb-in">登入</button><button class="btn" id="fb-up">註冊</button><button class="btn sm ghost" id="fb-reset">忘記密碼</button></div>`}
+    ${cfg && !FIREBASE_CONFIG ? `<details><summary class="sm">Firebase 設定</summary><p class="xs muted">專案：${esc(cfg.projectId)}</p><button class="btn sm danger" id="fb-rm">移除這台裝置的 Firebase 設定</button></details>` : ''}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>✨ Gemini AI</h3></div>
+    <label>API key（從 Google AI Studio 取得）<input id="g-key" type="password" autocomplete="off" value="${esc(st.geminiKey)}" placeholder="貼上你的 API key"></label>
+    <label>模型
+      <select id="g-model">${[...new Set([st.model, DEFAULT_MODEL, ...(S.models || []).map(m => m.id)])].map(m => `<option value="${esc(m)}" ${m === st.model ? 'selected' : ''}>${esc(m)}${m === DEFAULT_MODEL ? '（自動用最新 Flash）' : ''}</option>`).join('')}</select>
+    </label>
+    <div class="row wrap"><button class="btn primary" id="g-save">儲存</button><button class="btn" id="g-test">測試連線</button><button class="btn ghost" id="g-list">載入可用模型</button></div>
+    <p class="xs muted" style="margin:8px 0 0">${cloud ? 'API key 存在你的私人雲端資料裡（只有登入的你能讀取），其他裝置登入後就不用再貼。' : 'API key 只存在這台裝置。'}遇到「額度用完」，可以改用名稱有 flash-lite 的模型。免費方案的資料可能會被 Google 用來改善產品。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>🎯 個人資料與每日目標</h3></div>
+    <div class="grid3">
+      <label>性別<select id="p-sex">${['男', '女'].map(x => `<option ${x === st.profile.sex ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+      <label>年齡<input id="p-age" inputmode="numeric" value="${esc(st.profile.age)}"></label>
+      <label>身高 cm<input id="p-h" inputmode="decimal" value="${esc(st.profile.height)}"></label>
+    </div>
+    <div class="fgrid">
+      <label>熱量 kcal<input id="t-kcal" inputmode="numeric" value="${esc(st.targets.kcal)}"></label>
+      <label>蛋白質 g<input id="t-p" inputmode="numeric" value="${esc(st.targets.protein)}"></label>
+      <label>碳水 g<input id="t-c" inputmode="numeric" value="${esc(st.targets.carbs)}"></label>
+      <label>脂肪 g<input id="t-f" inputmode="numeric" value="${esc(st.targets.fat)}"></label>
+      <label>喝水 ml<input id="t-w" inputmode="numeric" value="${esc(st.targets.water)}"></label>
+    </div>
+    <p class="xs muted num" id="t-check" style="margin:-4px 0 10px"></p>
+    <label>給教練的備註（目標、背景、訓練安排、飲食習慣、傷病…，教練每次回答都會參考）<textarea id="p-notes" rows="6" placeholder="例：目標減脂、保住肌肉，不追求肌肥大。8 月以後停滯。一週練推拉腿…">${esc(st.coachNotes)}</textarea></label>
+    <button class="btn primary" id="p-save">儲存</button>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>💾 備份</h3></div>
+    <p class="sm muted" style="margin-top:0">匯出的檔案不會包含 API key。</p>
+    <div class="row wrap"><button class="btn" id="x-exp">匯出（含照片）</button><button class="btn" id="x-exp2">匯出（不含照片）</button><label class="btn ghost" style="margin:0;color:var(--text)">匯入備份<input type="file" accept="application/json,.json" hidden id="x-imp"></label></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>📘 設定教學</h3></div>
+    <details open><summary>1. 建立 Firebase 專案（免費）</summary><ol class="steps">
+      <li>用 Google 帳號打開 <a href="https://console.firebase.google.com/" target="_blank" rel="noopener">console.firebase.google.com</a>，按「建立專案」，名稱隨意（例如 fitcoach），Google Analytics 可以關掉。</li>
+      <li>進入專案後，按首頁的「&lt;/&gt;」（網頁）圖示新增網頁應用程式，暱稱隨意，<b>不用</b>勾選 Firebase Hosting。</li>
+      <li>畫面會出現一段 <code>const firebaseConfig = {…}</code>，整段複製，貼到上面的「Firebase 設定」欄位。</li></ol></details>
+    <details><summary>2. 開啟登入功能</summary><ol class="steps">
+      <li>左側選單 → Build（建構）→ Authentication → 開始使用。</li>
+      <li>「登入方式」分頁 → 選「電子郵件/密碼」→ 啟用第一個開關 → 儲存。</li></ol></details>
+    <details><summary>3. 建立資料庫並設定安全規則</summary><ol class="steps">
+      <li>左側選單 → Build → Firestore Database → 建立資料庫。位置選 <b>asia-east1（台灣）</b>，模式選「正式版」。</li>
+      <li>建立後到「規則」分頁，把內容全部換成下面這段，按「發布」。這樣只有登入的你能讀寫自己的資料。</li></ol>
+      <pre class="code">${esc(RULES)}</pre><button class="btn sm" id="copy-rules">複製規則</button></details>
+    <details><summary>4. 在其他裝置使用</summary><ol class="steps">
+      <li>在手機和電腦打開同一個網址，貼上同一段 Firebase 設定，用同一組帳號登入。</li>
+      <li>iPhone：用 Safari 打開 → 分享 → 加入主畫面，就能像 app 一樣使用。Android：Chrome 選單 → 加到主畫面。</li></ol></details>
+  </div>
+  <p class="xs muted" style="text-align:center">飲控健身教練・${cloud ? '雲端同步模式' : '本機模式'}</p>`;
+
+  const tCheck = () => { const k = num($('#t-kcal').value), p = num($('#t-p').value), c = num($('#t-c').value), f = num($('#t-f').value); const sum = p * 4 + c * 4 + f * 9; $('#t-check').textContent = `三大營養素換算約 ${r0(sum)} kcal（目標 ${r0(k)} kcal${Math.abs(sum - k) > 150 ? '，差距有點大，可以調整' : '，大致吻合'}）`; };
+  ['#t-kcal', '#t-p', '#t-c', '#t-f'].forEach(s => $(s).oninput = tCheck); tCheck();
+
+  const fbSave = $('#fb-save');
+  if (fbSave) fbSave.onclick = () => {
+    const c = parseFbConfig($('#fb-cfg').value);
+    if (!c) return toast('看不懂這段設定，請確認有 apiKey、projectId、appId', true);
+    lsSet('fc_fbcfg', JSON.stringify(c)); toast('已儲存，重新載入…'); setTimeout(() => location.reload(), 600);
+  };
+  const auth = () => S.fb && [S.fb.authM, S.fb.auth];
+  const em = () => $('#fb-email').value.trim(), pw = () => $('#fb-pw').value;
+  const bIn = $('#fb-in');
+  if (bIn) {
+    bIn.onclick = e => { const a = auth(); if (!a) return toast('Firebase 還沒連上', true); busy(e.currentTarget, '登入中', () => a[0].signInWithEmailAndPassword(a[1], em(), pw()).catch(err => toast(fbErr(err), true))); };
+    $('#fb-up').onclick = e => { const a = auth(); if (!a) return toast('Firebase 還沒連上', true); busy(e.currentTarget, '註冊中', () => a[0].createUserWithEmailAndPassword(a[1], em(), pw()).catch(err => toast(fbErr(err), true))); };
+    $('#fb-reset').onclick = () => { const a = auth(); if (!a || !em()) return toast('請先填 Email', true); a[0].sendPasswordResetEmail(a[1], em()).then(() => toast('已寄出重設密碼信')).catch(err => toast(fbErr(err), true)); };
+  }
+  const bOut = $('#fb-out'); if (bOut) bOut.onclick = async () => { if (await confirmBox('確定登出？')) S.fb.authM.signOut(S.fb.auth); };
+  const bRm = $('#fb-rm'); if (bRm) bRm.onclick = async () => { if (await confirmBox('移除後這台裝置會回到本機模式（雲端資料不會刪除）。確定？', { danger: true, ok: '移除' })) { lsSet('fc_fbcfg', null); location.reload(); } };
+  const bUp = $('#fb-upload'); if (bUp) bUp.onclick = e => busy(e.currentTarget, '上傳中', async () => {
+    let n = 0; for (const c of COLLS.filter(c => c !== 'meta')) { for (const row of await S.local.all(c)) { await S.store.put(c, row); n++; } }
+    if (await confirmBox(`已上傳 ${n} 筆。要清除這台裝置上的本機副本嗎？`, { ok: '清除本機副本' })) { for (const c of COLLS.filter(c => c !== 'meta')) for (const row of await S.local.all(c)) await S.local.del(c, row.id); }
+    render();
+  });
+
+  $('#g-save').onclick = async () => { st.geminiKey = $('#g-key').value.trim(); st.model = $('#g-model').value; await saveSettings(); toast('已儲存 Gemini 設定'); };
+  $('#g-test').onclick = e => busy(e.currentTarget, '測試中', async () => {
+    st.geminiKey = $('#g-key').value.trim(); st.model = $('#g-model').value;
+    try { const out = await gemini({ contents: [{ role: 'user', parts: [{ text: '只回覆「連線成功」四個字。' }] }], timeout: 30000 }); await saveSettings(); toast(`✅ ${out.text.slice(0, 20)}（模型：${out.model}）`); }
+    catch (err) { toast(err.message, true); }
+  });
+  $('#g-list').onclick = e => busy(e.currentTarget, '載入中', async () => {
+    st.geminiKey = $('#g-key').value.trim();
+    try { S.models = await listModels(); toast(`找到 ${S.models.length} 個可用模型`); render(); } catch (err) { toast(err.message, true); }
+  });
+  $('#p-save').onclick = async () => {
+    st.profile = { sex: $('#p-sex').value, age: $('#p-age').value.trim(), height: $('#p-h').value.trim() };
+    st.targets = { kcal: num($('#t-kcal').value) || 2000, protein: num($('#t-p').value), carbs: num($('#t-c').value), fat: num($('#t-f').value), water: num($('#t-w').value) || 3000 };
+    st.coachNotes = $('#p-notes').value.trim(); await saveSettings(); toast('已儲存');
+  };
+  $('#copy-rules').onclick = () => navigator.clipboard?.writeText(RULES).then(() => toast('已複製規則')).catch(() => toast('無法複製，請手動選取', true));
+  $('#x-exp').onclick = e => busy(e.currentTarget, '匯出中', () => exportData(true));
+  $('#x-exp2').onclick = e => busy(e.currentTarget, '匯出中', () => exportData(false));
+  $('#x-imp').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) importData(f); };
+}
+
+async function exportData(withPhotos){
+  const data = {};
+  for (const c of COLLS) {
+    if (c === 'photos' && !withPhotos) continue;
+    let rows = await S.store.all(c);
+    if (c === 'meta') rows = rows.map(r => ({ ...r, geminiKey: '' }));
+    data[c] = rows;
+  }
+  const blob = new Blob([JSON.stringify({ app: 'fitcoach', version: 1, exportedAt: new Date().toISOString(), data })], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `飲控教練備份-${todayStr()}${withPhotos ? '' : '-無照片'}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast('已匯出');
+}
+async function importData(file){
+  let j; try { j = JSON.parse(await file.text()); } catch { return toast('檔案不是有效的 JSON', true); }
+  const data = j?.data; if (!data || typeof data !== 'object') return toast('這不是飲控教練的備份檔', true);
+  const n = COLLS.reduce((s, c) => s + (Array.isArray(data[c]) ? data[c].length : 0), 0);
+  if (!await confirmBox(`要匯入 ${n} 筆資料嗎？相同的紀錄會被覆蓋。`, { ok: '匯入' })) return;
+  let done = 0;
+  for (const c of COLLS) {
+    for (const row of (Array.isArray(data[c]) ? data[c] : [])) {
+      if (!row || typeof row.id !== 'string') continue;
+      if (c === 'meta' && row.id === 'settings') { const key = S.settings.geminiKey; S.settings = deepMerge(clone(DEFAULT_SETTINGS), row); if (!S.settings.geminiKey) S.settings.geminiKey = key; await saveSettings(); }
+      else if (c === 'photos' && !isImgData(row.data)) continue;
+      else await S.store.put(c, row);
+      done++;
+    }
+  }
+  S.photoCache.clear(); toast(`已匯入 ${done} 筆`); render();
+}
+
+/* ====================== 事件 ====================== */
+const VIEWS = { today: viewToday, food: viewFood, photos: (el, tk) => { S.photoCursor = null; return viewPhotos(el, tk); }, train: viewTrain, body: viewBody, coach: viewCoach, settings: viewSettings };
+const ACT = {
+  go: el => goTab(el.dataset.tab),
+  reload: () => render(),
+  'day-prev': () => { S.date = addDays(S.date, -1); render(); },
+  'day-next': () => { S.date = addDays(S.date, 1); render(); },
+  'add-meal': () => openMealEditor(),
+  'edit-meal': async el => { const m = await S.store.get('meals', el.dataset.id); if (m) openMealEditor(m); },
+  'lightbox-src': el => openSheet(`<div class="sheet-h"><b>照片</b><button class="x" data-close>✕</button></div><div class="sheet-b"><img class="lightimg" src="${esc(el.src)}" alt=""></div>`),
+  photo: el => openPhotoView(el.dataset.id, el.dataset.meal),
+  'more-photos': async el => { el.disabled = true; await viewPhotos($('#view'), S.tk, true); },
+  water: async el => { const d = S.date; const cur = num((await S.store.get('days', d))?.water); await updateDay(d, { water: Math.max(0, cur + num(el.dataset.ml)) }); render(); },
+  'coach-today': () => { S.pendingQ = QUICK[0].q; goTab('coach'); },
+  'add-str': () => openStrengthEditor(),
+  'add-cardio': () => openCardioEditor(),
+  'edit-wo': async el => { const w = await S.store.get('workouts', el.dataset.id); if (!w) return; w.kind === 'cardio' ? openCardioEditor(w) : openStrengthEditor(w); },
+  'goto-date': el => { S.date = el.dataset.date; render(); window.scrollTo(0, 0); },
+  'add-body': () => openBodyEditor(),
+  'edit-body': async el => { const b = await S.store.get('body', el.dataset.id); if (b) openBodyEditor(b); },
+  'body-mach': el => { S.bodyMachine = el.dataset.m; render(); },
+  quick: el => sendChat(QUICK[+el.dataset.i].q),
+  'clear-chat': async () => { if (!await confirmBox('清除所有教練對話紀錄？', { danger: true, ok: '清除' })) return; for (const m of await S.store.all('chat')) await S.store.del('chat', m.id); render(); }
+};
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const fn = ACT[el.dataset.act]; if (!fn) return;
+  e.preventDefault(); Promise.resolve(fn(el, e)).catch(err => { console.error(err); toast(fbErr(err), true); });
+});
+$('#datepick').addEventListener('change', e => { if (e.target.value) { S.date = e.target.value; render(); } });
+window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (t !== S.tab && TABS.includes(t)) { S.tab = t; render(); } });
+let lastDay = todayStr();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || $('#sheets').children.length) return;
+  const t = todayStr(); if (t !== lastDay) { if (S.date === lastDay) S.date = t; lastDay = t; }
+  if (S.tab !== 'coach' || !S.chatBusy) render();
+});
+
+function setIcon(){
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 180; const g = c.getContext('2d');
+    g.fillStyle = '#0f766e'; g.fillRect(0, 0, 180, 180); g.font = '112px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('💪', 90, 100);
+    const l = document.createElement('link'); l.rel = 'apple-touch-icon'; l.href = c.toDataURL('image/png'); document.head.appendChild(l);
+    const f = document.createElement('link'); f.rel = 'icon'; f.href = l.href; document.head.appendChild(f);
+  } catch {}
+}
+
+/* ====================== 啟動 ====================== */
+(async function boot(){
+  setIcon();
+  const h = location.hash.slice(1); S.tab = TABS.includes(h) ? h : 'today';
+  const cfg = getFbConfig();
+  S.fbLoading = !!cfg;
+  try { await loadSettings(); } catch (e) { console.warn(e); }
+  render();
+  if (cfg) connectFirebase(cfg);
+})();
+window.__fc = { S, LocalStore, CloudStore, parseFbConfig, md, parseJSON };
+</script>
+</body>
+</html>
